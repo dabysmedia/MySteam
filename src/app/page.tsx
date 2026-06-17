@@ -28,9 +28,9 @@ export default function PlannerPage() {
   });
 
   const sortedQueue = sortWishlistQueue(queue);
-  const heroGame = playing[0] ?? sortedQueue[0] ?? null;
-  const heroVariant = playing[0] ? "playing" : sortedQueue[0] ? "next" : null;
-  const heroAppId = heroVariant === "next" ? heroGame?.appId : undefined;
+  const playingGame = playing[0];
+  const heroGame = playingGame ?? null;
+  const heroVariant = playingGame ? ("playing" as const) : null;
   const showQueuePanel = sortedQueue.length > 0 || upcoming.length > 0;
 
   if (!hydrated) {
@@ -97,14 +97,14 @@ export default function PlannerPage() {
               variant={heroVariant ?? "playing"}
               onArtSelect={(url) => setFeaturedArt(heroGame.appId, url)}
             />
-          ) : (
+          ) : sortedQueue.length === 0 ? (
             <div className="mx-3 flex items-center justify-between gap-4 rounded-[var(--radius-steamos-lg)] border border-steam-border bg-steam-surface/40 px-4 py-3 sm:mx-0">
               <p className="text-sm text-steam-muted">Nothing queued yet</p>
               <Link href="/search" className="shrink-0 text-sm font-medium text-steam-link hover:text-steam-accent">
                 Find a game
               </Link>
             </div>
-          )}
+          ) : null}
         </section>
 
         {showQueuePanel && (
@@ -112,7 +112,6 @@ export default function PlannerPage() {
             <PlayQueueTimeline
               queue={sortedQueue}
               upcoming={upcoming}
-              heroAppId={heroAppId}
               onReorder={reorderQueue}
             />
           </div>

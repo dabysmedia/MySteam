@@ -134,6 +134,7 @@ export function useBacklog() {
     (orderedAppIds: number[]) => {
       reorderWishlistQueue(orderedAppIds);
       refresh();
+      flushRemoteSync(readLocalBacklog());
     },
     [refresh]
   );

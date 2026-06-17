@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Reorder, useDragControls } from "framer-motion";
+import { ChevronDown, GripVertical } from "lucide-react";
 import type { BacklogGame } from "@/lib/types";
 import { sortWishlistQueue } from "@/lib/backlog";
+import { mergeVisibleQueueOrder } from "@/lib/queue-order";
 import { formatHltbDisplayTime, getHltbDisplayLabel, hltbBadgeClass, metacriticClass } from "@/lib/game-stats";
 import { formatQueueGenres } from "@/lib/steam-tags";
 import { parseReleaseDate, daysUntilRelease, formatCountdown } from "@/lib/release-date";
 import { GameListRow } from "@/components/GameListRow";
+import { cn } from "@/lib/utils";
 
 interface PlayQueueTimelineProps {
   queue: BacklogGame[];
   upcoming: BacklogGame[];
-  heroAppId?: number;
   onReorder?: (orderedAppIds: number[]) => void;
 }
 
@@ -56,51 +58,104 @@ function QueueMeta({ game }: { game: BacklogGame }) {
   );
 }
 
-function QueueRow({
+function UpNextSlot({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "relative mx-2 my-2 overflow-hidden rounded-[var(--radius-steamos-lg)]",
+        "border border-steam-accent/30 ring-1 ring-steam-accent/25",
+        "bg-gradient-to-br from-steam-accent/[0.16] via-steam-accent/[0.06] to-[#0c1118]/80",
+        "shadow-[inset_0_1px_0_rgba(26,159,255,0.15),0_8px_28px_rgba(26,159,255,0.1)]",
+        className
+      )}
+    >
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-steam-accent via-steam-accent/80 to-steam-accent/40" />
+      {children}
+    </div>
+  );
+}
+
+function QueueListRow({
   game,
-  reordering,
-  canMoveUp,
-  canMoveDown,
-  onMoveUp,
-  onMoveDown,
+  isNextUp,
+  skipSlot,
+  className,
 }: {
   game: BacklogGame;
-  reordering: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  isNextUp: boolean;
+  skipSlot?: boolean;
+  className?: string;
 }) {
-  const leading = reordering ? (
-    <div className="flex shrink-0 flex-col justify-center gap-0.5 self-center pl-4 sm:pl-5">
-      <button
-        type="button"
-        onClick={onMoveUp}
-        disabled={!canMoveUp}
-        aria-label="Move up"
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-steam-muted transition-colors hover:bg-white/10 hover:text-steam-accent disabled:opacity-25"
-      >
-        <ChevronUp className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={onMoveDown}
-        disabled={!canMoveDown}
-        aria-label="Move down"
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-steam-muted transition-colors hover:bg-white/10 hover:text-steam-accent disabled:opacity-25"
-      >
-        <ChevronDown className="h-4 w-4" />
-      </button>
-    </div>
-  ) : undefined;
-
-  return (
+  const row = (
     <GameListRow
       game={game}
       meta={<QueueMeta game={game} />}
-      leading={leading}
-      hideChevron={reordering}
+      titleClassName={isNextUp ? "text-white lg:text-base" : undefined}
+      coverClassName={
+        isNextUp ? "ring-2 ring-steam-accent/70 shadow-[0_0_28px_rgba(26,159,255,0.35)]" : undefined
+      }
+      linkClassName={isNextUp ? "py-1" : undefined}
+      className={cn(isNextUp ? "border-b-0" : undefined, className)}
     />
+  );
+
+  if (!isNextUp || skipSlot) return row;
+
+  return <UpNextSlot>{row}</UpNextSlot>;
+}
+
+function DraggableQueueRow({
+  game,
+  isNextUp,
+  onDragStart,
+  onDragEnd,
+}: {
+  game: BacklogGame;
+  isNextUp: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const dragControls = useDragControls();
+
+  const rowBody = (
+    <div className="flex items-stretch">
+      <button
+        type="button"
+        onPointerDown={(event) => dragControls.start(event)}
+        className={cn(
+          "flex w-10 shrink-0 cursor-grab touch-none items-center justify-center transition-colors hover:text-steam-accent active:cursor-grabbing sm:w-11",
+          isNextUp ? "text-steam-accent/70" : "text-steam-muted"
+        )}
+        aria-label={`Reorder ${game.name}`}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <QueueListRow game={game} isNextUp={isNextUp} skipSlot className="border-b-0" />
+      </div>
+    </div>
+  );
+
+  return (
+    <Reorder.Item
+      value={game}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "relative z-0 last:border-b-0",
+        isNextUp ? "border-b-0 bg-transparent" : "border-b border-steam-border bg-steam-dark"
+      )}
+      whileDrag={{
+        zIndex: 50,
+        scale: 1.02,
+        boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+      }}
+      transition={{ duration: 0.15 }}
+    >
+      {isNextUp ? <UpNextSlot>{rowBody}</UpNextSlot> : rowBody}
+    </Reorder.Item>
   );
 }
 
@@ -123,25 +178,69 @@ function UpcomingRow({ game }: { game: BacklogGame }) {
   );
 }
 
-export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: PlayQueueTimelineProps) {
+export function PlayQueueTimeline({
+  queue,
+  upcoming,
+  onReorder,
+}: PlayQueueTimelineProps) {
   const sortedQueue = sortWishlistQueue(queue);
-  const visibleQueue = heroAppId
-    ? sortedQueue.filter((g) => g.appId !== heroAppId)
-    : sortedQueue;
+  const visibleQueue = sortedQueue;
+  const firstInQueueId = sortedQueue[0]?.appId;
   const isEmpty = visibleQueue.length === 0 && upcoming.length === 0;
-  const canReorder = Boolean(onReorder) && sortedQueue.length > 1;
+  const canReorder = Boolean(onReorder) && visibleQueue.length > 1;
   const [reordering, setReordering] = useState(false);
   const [upcomingOpen, setUpcomingOpen] = useState(upcoming.length > 0);
+  const orderKey = visibleQueue.map((g) => g.appId).join(",");
+  const [orderedVisible, setOrderedVisible] = useState(visibleQueue);
+  const draggingRef = useRef(false);
+  const orderedRef = useRef(visibleQueue);
+  const lastSyncedKeyRef = useRef(orderKey);
 
-  function moveQueueItem(visibleIndex: number, direction: -1 | 1) {
+  const displayQueue = useMemo(() => {
+    const byId = new Map(visibleQueue.map((g) => [g.appId, g]));
+    return orderedVisible.map((g) => byId.get(g.appId) ?? g);
+  }, [orderedVisible, visibleQueue]);
+
+  useEffect(() => {
+    if (draggingRef.current || lastSyncedKeyRef.current === orderKey) return;
+    lastSyncedKeyRef.current = orderKey;
+    setOrderedVisible(visibleQueue);
+    orderedRef.current = visibleQueue;
+  }, [orderKey, visibleQueue]);
+
+  function commitOrder(nextVisible: BacklogGame[]) {
     if (!onReorder) return;
-    const target = visibleQueue[visibleIndex];
-    const fullIndex = sortedQueue.findIndex((g) => g.appId === target.appId);
-    const nextIndex = fullIndex + direction;
-    if (nextIndex < 0 || nextIndex >= sortedQueue.length) return;
-    const ids = sortedQueue.map((g) => g.appId);
-    [ids[fullIndex], ids[nextIndex]] = [ids[nextIndex], ids[fullIndex]];
-    onReorder(ids);
+    onReorder(mergeVisibleQueueOrder(sortedQueue, nextVisible));
+  }
+
+  function handleReorder(nextVisible: BacklogGame[]) {
+    setOrderedVisible(nextVisible);
+    orderedRef.current = nextVisible;
+  }
+
+  function handleDragStart() {
+    draggingRef.current = true;
+  }
+
+  function handleDragEnd() {
+    draggingRef.current = false;
+    commitOrder(orderedRef.current);
+  }
+
+  function toggleReordering() {
+    setReordering((active) => {
+      if (active) {
+        draggingRef.current = false;
+        return false;
+      }
+      setOrderedVisible(visibleQueue);
+      orderedRef.current = visibleQueue;
+      return true;
+    });
+  }
+
+  function isNextUpGame(game: BacklogGame): boolean {
+    return firstInQueueId !== undefined && game.appId === firstInQueueId;
   }
 
   if (isEmpty) {
@@ -168,7 +267,7 @@ export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: Pla
         {canReorder && visibleQueue.length > 0 && (
           <button
             type="button"
-            onClick={() => setReordering((v) => !v)}
+            onClick={toggleReordering}
             className={`shrink-0 text-xs font-medium transition-colors ${
               reordering ? "text-steam-accent" : "text-steam-link hover:text-steam-accent-hover"
             }`}
@@ -179,21 +278,29 @@ export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: Pla
       </div>
 
       {visibleQueue.length > 0 && (
-        <div>
-          {visibleQueue.map((game, i) => (
-            <QueueRow
-              key={game.appId}
-              game={game}
-              reordering={reordering}
-              canMoveUp={sortedQueue.findIndex((g) => g.appId === game.appId) > 0}
-              canMoveDown={
-                sortedQueue.findIndex((g) => g.appId === game.appId) < sortedQueue.length - 1
-              }
-              onMoveUp={() => moveQueueItem(i, -1)}
-              onMoveDown={() => moveQueueItem(i, 1)}
-            />
-          ))}
-        </div>
+        reordering && canReorder ? (
+          <Reorder.Group
+            axis="y"
+            values={displayQueue}
+            onReorder={handleReorder}
+          >
+            {displayQueue.map((game) => (
+              <DraggableQueueRow
+                key={game.appId}
+                game={game}
+                isNextUp={isNextUpGame(game)}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              />
+            ))}
+          </Reorder.Group>
+        ) : (
+          <div>
+            {displayQueue.map((game) => (
+              <QueueListRow key={game.appId} game={game} isNextUp={isNextUpGame(game)} />
+            ))}
+          </div>
+        )
       )}
 
       {upcoming.length > 0 && (

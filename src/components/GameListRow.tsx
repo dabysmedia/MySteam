@@ -11,8 +11,10 @@ interface GameListRowProps {
   meta: React.ReactNode;
   leading?: React.ReactNode;
   hideChevron?: boolean;
+  badge?: React.ReactNode;
   titleClassName?: string;
   coverClassName?: string;
+  linkClassName?: string;
   className?: string;
 }
 
@@ -40,8 +42,10 @@ export function GameListRow({
   meta,
   leading,
   hideChevron = false,
+  badge,
   titleClassName,
   coverClassName,
+  linkClassName,
   className,
 }: GameListRowProps) {
   const cover = getRowCoverArt(game);
@@ -58,7 +62,10 @@ export function GameListRow({
 
       <Link
         href={`/game/${game.appId}`}
-        className="relative flex min-w-0 flex-1 overflow-hidden active:opacity-90"
+        className={cn(
+          "relative flex min-w-0 flex-1 overflow-hidden active:opacity-90",
+          linkClassName
+        )}
       >
         {bleed && <RowBleedBackground src={bleed} />}
 
@@ -73,6 +80,7 @@ export function GameListRow({
           </div>
 
           <div className="min-w-0 flex-1">
+            {badge}
             <h3
               className={cn(
                 "truncate text-[15px] font-medium text-steam-text-bright group-hover:text-steam-accent sm:text-sm lg:text-[15px] lg:font-semibold",
