@@ -65,20 +65,29 @@ function BrowseContent() {
   const showCatalog = !searched && !loading;
 
   return (
-    <div className="space-y-5 overflow-x-hidden px-4 py-4 sm:px-0 sm:py-0">
-      <div>
-        <h1 className="text-xl font-normal text-steam-text-bright sm:text-2xl">Browse Steam</h1>
-        <p className="mt-1 text-sm text-steam-muted">
-          Discover popular and new games — search as you type
+    <div className="space-y-5 overflow-x-hidden px-4 py-4 sm:px-0 sm:py-0 lg:space-y-8">
+      <div className="lg:flex lg:items-end lg:justify-between lg:gap-8">
+        <div>
+          <h1 className="text-xl font-normal text-steam-text-bright sm:text-2xl lg:text-3xl">
+            Browse Steam
+          </h1>
+          <p className="mt-1 text-sm text-steam-muted lg:mt-2 lg:text-[15px]">
+            Discover popular and new games — search as you type
+          </p>
+        </div>
+        <p className="hidden text-sm text-steam-muted lg:block lg:max-w-xs lg:text-right">
+          Pick a game to view details and add it to your planner.
         </p>
       </div>
 
-      <SearchAutocomplete
-        defaultValue={initialQuery}
-        onSubmit={search}
-        autoFocus={false}
-        placeholder="Search the Steam store..."
-      />
+      <div className="lg:max-w-2xl">
+        <SearchAutocomplete
+          defaultValue={initialQuery}
+          onSubmit={search}
+          autoFocus={false}
+          placeholder="Search the Steam store..."
+        />
+      </div>
 
       {loading && (
         <div className="space-y-2">

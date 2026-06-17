@@ -34,8 +34,8 @@ function BrowseGameTile({ game }: BrowseGameTileProps) {
           </span>
         )}
       </div>
-      <div className="space-y-0.5 p-2">
-        <p className="line-clamp-2 text-xs leading-snug text-steam-text-bright group-hover:text-steam-accent">
+      <div className="space-y-0.5 p-2 lg:p-3">
+        <p className="line-clamp-2 text-xs leading-snug text-steam-text-bright group-hover:text-steam-accent lg:text-[13px]">
           {game.name}
         </p>
         <p className="text-[11px] text-steam-muted">{price}</p>
@@ -55,7 +55,7 @@ function BrowseSection({ title, games }: BrowseSectionProps) {
   return (
     <section className="steamos-panel overflow-hidden">
       <div className="steamos-section-header">{title}</div>
-      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-3 lg:p-4 xl:grid-cols-6">
         {games.map((game) => (
           <BrowseGameTile key={game.id} game={game} />
         ))}
@@ -90,7 +90,7 @@ export function BrowseCatalog({ popular, newReleases, comingSoon, loading }: Bro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:space-y-5">
       <BrowseSection title="Popular Now" games={popular} />
       <BrowseSection title="New Releases" games={newReleases} />
       <BrowseSection title="Coming Soon" games={comingSoon} />

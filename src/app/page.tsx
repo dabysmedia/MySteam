@@ -44,8 +44,8 @@ export default function PlannerPage() {
 
   if (games.length === 0) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-        <div className="max-w-sm space-y-6">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center lg:min-h-[60vh]">
+        <div className="max-w-sm space-y-6 lg:max-w-md lg:space-y-8">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-steam-accent/10">
             <Search className="h-8 w-8 text-steam-accent" />
           </div>
@@ -65,34 +65,38 @@ export default function PlannerPage() {
   }
 
   return (
-    <div className="space-y-4 overflow-x-hidden pb-5 sm:space-y-4 sm:pb-4">
-      {heroGame ? (
-        <section>
-          <NowPlayingCard
-            game={heroGame}
-            variant={heroVariant ?? "playing"}
-            onArtSelect={(url) => setFeaturedArt(heroGame.appId, url)}
-          />
+    <div className="space-y-4 overflow-x-hidden pb-5 sm:space-y-4 sm:pb-4 lg:space-y-6">
+      <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-6">
+        <section className="lg:col-span-7 xl:col-span-8">
+          {heroGame ? (
+            <NowPlayingCard
+              game={heroGame}
+              variant={heroVariant ?? "playing"}
+              onArtSelect={(url) => setFeaturedArt(heroGame.appId, url)}
+            />
+          ) : (
+            <div className="mx-3 flex items-center justify-between gap-4 rounded-[var(--radius-steamos-lg)] border border-steam-border bg-steam-surface/40 px-4 py-3 sm:mx-0">
+              <p className="text-sm text-steam-muted">Nothing queued yet</p>
+              <Link href="/search" className="shrink-0 text-sm font-medium text-steam-link hover:text-steam-accent">
+                Find a game
+              </Link>
+            </div>
+          )}
         </section>
-      ) : (
-        <section className="mx-3 flex items-center justify-between gap-4 rounded-[var(--radius-steamos-lg)] border border-steam-border bg-steam-surface/40 px-4 py-3 sm:mx-0">
-          <p className="text-sm text-steam-muted">Nothing queued yet</p>
-          <Link href="/search" className="shrink-0 text-sm font-medium text-steam-link hover:text-steam-accent">
-            Find a game
-          </Link>
-        </section>
-      )}
+
+        {showQueuePanel && (
+          <div className="space-y-4 px-3 sm:space-y-4 sm:px-0 lg:sticky lg:top-[4.75rem] lg:col-span-5 lg:self-start lg:px-0 xl:col-span-4">
+            <PlayQueueTimeline
+              queue={sortedQueue}
+              upcoming={upcoming}
+              heroAppId={heroAppId}
+              onReorder={reorderQueue}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="space-y-4 px-3 sm:space-y-4 sm:px-0">
-        {showQueuePanel && (
-          <PlayQueueTimeline
-            queue={sortedQueue}
-            upcoming={upcoming}
-            heroAppId={heroAppId}
-            onReorder={reorderQueue}
-          />
-        )}
-
         {completed.length > 0 && (
           <details className="steamos-panel group overflow-hidden" open>
             <summary className="steamos-section-header flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">

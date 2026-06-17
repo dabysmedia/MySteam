@@ -62,30 +62,30 @@ export function GameListRow({
       >
         {bleed && <RowBleedBackground src={bleed} />}
 
-        <div className="relative z-10 flex w-full items-center gap-3.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-3">
+        <div className="relative z-10 flex w-full items-center gap-3.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-3 lg:gap-4 lg:px-5 lg:py-4">
           <div
             className={cn(
-              "relative h-16 w-[96px] shrink-0 overflow-hidden rounded-[11px] ring-1 ring-white/15 shadow-[0_2px_12px_rgba(0,0,0,0.45)] sm:h-14 sm:w-[84px]",
+              "relative h-16 w-[96px] shrink-0 overflow-hidden rounded-[11px] ring-1 ring-white/15 shadow-[0_2px_12px_rgba(0,0,0,0.45)] sm:h-14 sm:w-[84px] lg:h-[4.5rem] lg:w-[104px] lg:rounded-[13px]",
               coverClassName
             )}
           >
-            <Image src={cover} alt={game.name} fill className="object-cover" sizes="96px" priority={false} />
+            <Image src={cover} alt={game.name} fill className="object-cover" sizes="(max-width: 1024px) 96px, 104px" priority={false} />
           </div>
 
           <div className="min-w-0 flex-1">
             <h3
               className={cn(
-                "truncate text-[15px] font-medium text-steam-text-bright group-hover:text-steam-accent sm:text-sm",
+                "truncate text-[15px] font-medium text-steam-text-bright group-hover:text-steam-accent sm:text-sm lg:text-[15px] lg:font-semibold",
                 titleClassName
               )}
             >
               {game.name}
             </h3>
-            <div className="mt-0.5 truncate text-xs text-steam-muted">{meta}</div>
+            <div className="mt-0.5 truncate text-xs text-steam-muted lg:text-[13px]">{meta}</div>
           </div>
 
           {!hideChevron && (
-            <ChevronRight className="h-4 w-4 shrink-0 text-steam-muted-dark opacity-60 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-steam-muted-dark opacity-60 lg:h-5 lg:w-5 lg:opacity-40 lg:transition-opacity lg:group-hover:opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100" />
           )}
         </div>
       </Link>

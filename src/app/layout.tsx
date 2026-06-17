@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { Search } from "lucide-react";
 import { Inter } from "next/font/google";
 import { Logo } from "@/components/Logo";
 import { BacklogSyncProvider } from "@/components/BacklogSyncProvider";
 import { LibrarySync } from "@/components/LibrarySync";
-import { Sidebar } from "@/components/Navigation";
+import { TopNav } from "@/components/Navigation";
 import { SearchFab } from "@/components/SearchFab";
 import { ServiceWorkerCleanup } from "@/components/ServiceWorkerCleanup";
 import "./globals.css";
@@ -41,32 +39,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="no-scrollbar-x">
         <BacklogSyncProvider>
           <ServiceWorkerCleanup />
-        <div className="flex min-h-dvh w-full max-w-[100vw] overflow-x-hidden">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-dvh flex-col overflow-x-hidden">
             <header className="sticky top-0 z-40 glass">
-              <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 sm:h-14 sm:px-6">
-                <Logo />
-                <div className="flex items-center gap-2">
-                  <div className="md:hidden">
-                    <LibrarySync compact />
-                  </div>
-                  <Link
-                  href="/search"
-                  className="hidden items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-steam-muted transition-colors hover:bg-white/[0.05] hover:text-steam-accent md:flex"
-                >
-                  <Search className="h-4 w-4" />
-                  Search
-                </Link>
+              <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6 lg:px-8">
+                <div className="flex min-w-0 items-center gap-6">
+                  <Logo />
+                  <TopNav />
                 </div>
+                <LibrarySync compact />
               </div>
             </header>
-            <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 overflow-x-hidden px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-5 md:pb-6">
+            <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 overflow-x-hidden px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-5 md:pb-6 lg:px-8 lg:pt-6">
               {children}
             </main>
             <SearchFab />
           </div>
-        </div>
         </BacklogSyncProvider>
       </body>
     </html>
