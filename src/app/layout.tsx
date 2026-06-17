@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "MySteam — Game Planner",
   description: "Plan what to play next. Track your current game, wishlist, and upcoming releases.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [{ url: "/icon-512.png", type: "image/png" }],
+    apple: [{ url: "/icon-192.png", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

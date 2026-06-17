@@ -5,11 +5,11 @@ export function Logo({ className = "" }: { className?: string }) {
   return (
     <Link href="/" className={`group flex items-center gap-2.5 ${className}`}>
       <Image
-        src="/steam-logo.svg"
-        alt="Steam"
+        src="/logo.png"
+        alt="MySteam"
         width={32}
         height={32}
-        className="h-8 w-8 sm:h-8 sm:w-8"
+        className="h-8 w-8 brightness-0 invert"
         priority
       />
       <div className="flex items-baseline gap-1.5">
