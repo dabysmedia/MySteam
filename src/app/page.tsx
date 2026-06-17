@@ -65,9 +65,9 @@ export default function PlannerPage() {
   }
 
   return (
-    <div className="space-y-4 overflow-x-hidden pb-5 sm:space-y-4 sm:pb-4 lg:overflow-visible lg:space-y-6">
+    <div className="overflow-x-hidden pb-5 sm:pb-4 lg:overflow-visible">
       <div className="min-w-0 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6 lg:overflow-visible">
-        <section className="min-w-0 lg:col-span-7 lg:row-start-1 xl:col-span-8">
+        <section className="min-w-0 space-y-4 lg:col-span-7 lg:row-start-1 xl:col-span-8">
           {heroGame ? (
             <NowPlayingCard
               game={heroGame}
@@ -82,10 +82,29 @@ export default function PlannerPage() {
               </Link>
             </div>
           )}
+
+          {completed.length > 0 && (
+            <details className="steamos-panel group mx-3 overflow-hidden sm:mx-0" open>
+              <summary className="steamos-section-header flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
+                <div className="flex items-center gap-2">
+                  <span>Completed</span>
+                  <span className="steamos-chip steamos-chip-muted px-2 py-0.5 text-[10px]">
+                    {completed.length}
+                  </span>
+                </div>
+                <ChevronDown className="h-4 w-4 text-steam-muted transition-transform group-open:rotate-180" />
+              </summary>
+              <div>
+                {completed.map((game) => (
+                  <PlannerGameRow key={game.appId} game={game} showCompleted />
+                ))}
+              </div>
+            </details>
+          )}
         </section>
 
         {showQueuePanel && (
-          <div className="min-w-0 space-y-4 overflow-x-hidden px-3 sm:space-y-4 sm:px-0 lg:sticky lg:top-[4.75rem] lg:col-span-5 lg:-mt-[76px] lg:row-start-1 lg:self-start lg:px-0 xl:col-span-4">
+          <div className="min-w-0 overflow-x-hidden px-3 max-lg:mt-3 sm:px-0 lg:sticky lg:top-[4.75rem] lg:col-span-5 lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:row-start-1 lg:self-start lg:px-0 scrollbar-thin xl:col-span-4">
             <PlayQueueTimeline
               queue={sortedQueue}
               upcoming={upcoming}
@@ -93,27 +112,6 @@ export default function PlannerPage() {
               onReorder={reorderQueue}
             />
           </div>
-        )}
-      </div>
-
-      <div className="space-y-4 px-3 sm:space-y-4 sm:px-0">
-        {completed.length > 0 && (
-          <details className="steamos-panel group overflow-hidden" open>
-            <summary className="steamos-section-header flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
-              <div className="flex items-center gap-2">
-                <span>Completed</span>
-                <span className="steamos-chip steamos-chip-muted px-2 py-0.5 text-[10px]">
-                  {completed.length}
-                </span>
-              </div>
-              <ChevronDown className="h-4 w-4 text-steam-muted transition-transform group-open:rotate-180" />
-            </summary>
-            <div>
-              {completed.map((game) => (
-                <PlannerGameRow key={game.appId} game={game} showCompleted />
-              ))}
-            </div>
-          </details>
         )}
       </div>
     </div>
