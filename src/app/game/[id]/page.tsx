@@ -68,7 +68,7 @@ export default function GameDetailPage() {
     return (
       <div className="space-y-0">
         <div className="aspect-[16/9] skeleton sm:aspect-[21/9]" />
-        <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 lg:max-w-7xl lg:px-8">
+        <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 lg:max-w-none lg:px-0">
           <div className="h-8 w-2/3 skeleton rounded-lg" />
           <div className="h-48 skeleton rounded-2xl" />
         </div>
@@ -146,7 +146,7 @@ export default function GameDetailPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6 lg:space-y-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6 lg:max-w-none lg:space-y-6 lg:px-0">
         <nav className="flex items-center gap-1.5 text-xs text-steam-muted">
           <Link href="/" className="hover:text-steam-link">Planner</Link>
           <span>/</span>

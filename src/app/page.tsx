@@ -65,9 +65,9 @@ export default function PlannerPage() {
   }
 
   return (
-    <div className="space-y-4 overflow-x-hidden pb-5 sm:space-y-4 sm:pb-4 lg:space-y-6">
-      <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-6">
-        <section className="lg:col-span-7 xl:col-span-8">
+    <div className="space-y-4 overflow-x-hidden pb-5 sm:space-y-4 sm:pb-4 lg:overflow-visible lg:space-y-6">
+      <div className="min-w-0 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6 lg:overflow-visible">
+        <section className="min-w-0 lg:col-span-7 lg:row-start-1 xl:col-span-8">
           {heroGame ? (
             <NowPlayingCard
               game={heroGame}
@@ -85,7 +85,7 @@ export default function PlannerPage() {
         </section>
 
         {showQueuePanel && (
-          <div className="space-y-4 px-3 sm:space-y-4 sm:px-0 lg:sticky lg:top-[4.75rem] lg:col-span-5 lg:self-start lg:px-0 xl:col-span-4">
+          <div className="min-w-0 space-y-4 overflow-x-hidden px-3 sm:space-y-4 sm:px-0 lg:sticky lg:top-[4.75rem] lg:col-span-5 lg:-mt-[76px] lg:row-start-1 lg:self-start lg:px-0 xl:col-span-4">
             <PlayQueueTimeline
               queue={sortedQueue}
               upcoming={upcoming}

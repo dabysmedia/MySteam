@@ -148,7 +148,7 @@ export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: Pla
 
   if (isEmpty) {
     return (
-      <section className="steamos-panel overflow-hidden lg:-my-[76px]">
+      <section className="steamos-panel w-full max-w-full overflow-hidden">
         <div className="steamos-section-header">To Play</div>
         <div className="px-5 py-8 sm:px-6 sm:py-6">
           <p className="text-sm font-medium text-steam-text">Your queue is empty</p>
@@ -159,7 +159,7 @@ export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: Pla
   }
 
   return (
-    <section className="steamos-panel overflow-hidden lg:-my-[76px]">
+    <section className="steamos-panel w-full max-w-full overflow-hidden">
       <div className="steamos-section-header flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span>To Play</span>
