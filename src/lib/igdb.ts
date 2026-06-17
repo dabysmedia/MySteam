@@ -114,11 +114,11 @@ function mapGameRow(game: IgdbGameRow): IgdbMedia {
   return {
     igdbId: game.id,
     name: game.name,
-    coverUrl: game.cover?.image_id ? igdbImageUrl(game.cover.image_id, "t_cover_big") : null,
+    coverUrl: game.cover?.image_id ? igdbImageUrl(game.cover.image_id, "t_1080p") : null,
     screenshotUrls: (game.screenshots ?? [])
       .map((s) => s.image_id)
       .filter((id): id is string => Boolean(id))
-      .map((id) => igdbImageUrl(id, "t_screenshot_huge")),
+      .map((id) => igdbImageUrl(id, "t_1080p")),
     artworkUrls: (game.artworks ?? [])
       .map((a) => a.image_id)
       .filter((id): id is string => Boolean(id))

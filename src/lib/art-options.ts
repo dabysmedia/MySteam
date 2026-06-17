@@ -1,4 +1,5 @@
 import type { BacklogGame, SteamGameDetails } from "@/lib/types";
+import type { IgdbMedia } from "@/lib/igdb";
 
 export interface ArtOption {
   id: string;
@@ -32,6 +33,21 @@ export function buildArtOptionsFromBacklog(
   addOption(options, seen, "header", game.headerImage, "Header");
   addOption(options, seen, "background", game.backgroundImage, "Background");
   addOption(options, seen, "screenshot", game.screenshotImage, "Screenshot");
+  return options;
+}
+
+export function buildArtOptionsFromIgdb(igdb: IgdbMedia): ArtOption[] {
+  const options: ArtOption[] = [];
+  const seen = new Set<string>();
+
+  addOption(options, seen, "igdb-cover", igdb.coverUrl ?? undefined, "Cover (HD)");
+  igdb.artworkUrls.forEach((url, index) => {
+    addOption(options, seen, `igdb-art-${index}`, url, `Artwork ${index + 1} (HD)`);
+  });
+  igdb.screenshotUrls.forEach((url, index) => {
+    addOption(options, seen, `igdb-shot-${index}`, url, `Screenshot ${index + 1} (HD)`);
+  });
+
   return options;
 }
 

@@ -4,11 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import type { BacklogGame } from "@/lib/types";
 import { updateBacklogMeta } from "@/lib/backlog";
 import { hasHltbData } from "@/lib/game-stats";
+import { extractBacklogImagesFromDetails, hasIgdbImages } from "@/lib/game-media";
 import { extractSteamGenres } from "@/lib/steam-tags";
 import { parseReleaseDate } from "@/lib/release-date";
 
+function needsImageUpgrade(game: BacklogGame): boolean {
+  if (!game.headerImage && !game.backgroundImage && !game.screenshotImage) return true;
+  return !hasIgdbImages(game);
+}
+
 function needsDetails(game: BacklogGame): boolean {
-  return !game.releaseDate || !game.screenshotImage || !game.genres?.length;
+  return !game.releaseDate || !game.genres?.length || needsImageUpgrade(game);
 }
 
 function needsStats(game: BacklogGame): boolean {
@@ -57,13 +63,17 @@ export function useEnrichedBacklog(games: BacklogGame[]): BacklogGame[] {
                   meta.releaseDate = data.release_date.date;
                   meta.comingSoon = data.release_date.coming_soon;
                 }
-                if (!game.backgroundImage) {
-                  const bg = data.background_raw || data.background;
-                  if (bg) meta.backgroundImage = bg;
-                }
-                if (!game.screenshotImage) {
-                  const shot = data.screenshots?.[0]?.path_full;
-                  if (shot) meta.screenshotImage = shot;
+                if (needsImageUpgrade(game)) {
+                  Object.assign(meta, extractBacklogImagesFromDetails(data));
+                } else {
+                  if (!game.backgroundImage) {
+                    const bg = data.background_raw || data.background;
+                    if (bg) meta.backgroundImage = bg;
+                  }
+                  if (!game.screenshotImage) {
+                    const shot = data.screenshots?.[0]?.path_full;
+                    if (shot) meta.screenshotImage = shot;
+                  }
                 }
                 if (!game.genres?.length) {
                   const genres = extractSteamGenres(data.genres);

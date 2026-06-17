@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Check, ImageIcon } from "lucide-react";
-import type { BacklogGame, SteamGameDetails } from "@/lib/types";
+import type { BacklogGame } from "@/lib/types";
+import type { EnrichedSteamGameDetails } from "@/lib/game-media";
 import {
   buildArtOptionsFromBacklog,
+  buildArtOptionsFromIgdb,
   buildArtOptionsFromSteam,
   getDefaultArtUrl,
   mergeArtOptions,
@@ -20,13 +22,13 @@ interface HeroArtDropdownProps {
 
 export function HeroArtDropdown({ game, selectedUrl, onSelect }: HeroArtDropdownProps) {
   const [open, setOpen] = useState(false);
-  const [steamDetails, setSteamDetails] = useState<SteamGameDetails | null>(null);
+  const [steamDetails, setSteamDetails] = useState<EnrichedSteamGameDetails | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/steam/details?appId=${game.appId}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: SteamGameDetails | null) => {
+      .then((data: EnrichedSteamGameDetails | null) => {
         if (!cancelled && data) setSteamDetails(data);
       })
       .catch(() => {});
@@ -40,8 +42,9 @@ export function HeroArtDropdown({ game, selectedUrl, onSelect }: HeroArtDropdown
 
   const options = useMemo(() => {
     const backlog = buildArtOptionsFromBacklog(game);
+    const igdb = steamDetails?.igdbMedia ? buildArtOptionsFromIgdb(steamDetails.igdbMedia) : [];
     const steam = steamDetails ? buildArtOptionsFromSteam(steamDetails) : [];
-    return mergeArtOptions(backlog, steam);
+    return mergeArtOptions(igdb, backlog, steam);
   }, [game, steamDetails]);
 
   return (

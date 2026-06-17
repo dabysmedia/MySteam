@@ -15,14 +15,16 @@ import { PlannerActions } from "@/components/PlannerActions";
 import { GamePlannerBar } from "@/components/GamePlannerBar";
 import { GameStatsPanel } from "@/components/GameStatsPanel";
 import { useBacklog } from "@/hooks/useBacklog";
-import type { SteamGameDetails, BacklogStatus, GameStats } from "@/lib/types";
+import type { BacklogStatus, GameStats } from "@/lib/types";
+import type { EnrichedSteamGameDetails } from "@/lib/game-media";
+import { extractBacklogImagesFromDetails } from "@/lib/game-media";
 import { extractSteamGenres } from "@/lib/steam-tags";
 import { formatPlaytimeHours } from "@/lib/game-stats";
 
 export default function GameDetailPage() {
   const params = useParams();
   const appId = Number(params.id);
-  const [game, setGame] = useState<SteamGameDetails | null>(null);
+  const [game, setGame] = useState<EnrichedSteamGameDetails | null>(null);
   const [stats, setStats] = useState<GameStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -95,14 +97,15 @@ export default function GameDetailPage() {
     game.header_image;
   const isComingSoon = game.release_date?.coming_soon;
 
-  const handleAdd = (status: BacklogStatus) =>
+  const handleAdd = (status: BacklogStatus) => {
+    const images = extractBacklogImagesFromDetails(game);
     add(
       {
         appId: game.steam_appid,
         name: game.name,
-        headerImage: game.header_image,
-        backgroundImage: game.background_raw || game.background,
-        screenshotImage: game.screenshots?.[0]?.path_full,
+        headerImage: images.headerImage,
+        backgroundImage: images.backgroundImage,
+        screenshotImage: images.screenshotImage,
         shortDescription: game.short_description,
         releaseDate: game.release_date?.date,
         comingSoon: game.release_date?.coming_soon,
@@ -110,6 +113,7 @@ export default function GameDetailPage() {
       },
       status
     );
+  };
 
   return (
     <div className="overflow-x-hidden pb-8">

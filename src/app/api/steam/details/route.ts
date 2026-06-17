@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SteamAppDetailsResponse } from "@/lib/types";
+import { getIgdbMediaBySteamAppId, isIgdbConfigured } from "@/lib/igdb";
+import { mergeGameDetailsWithIgdb } from "@/lib/game-media";
 
 export async function GET(request: NextRequest) {
   const appId = request.nextUrl.searchParams.get("appId");
@@ -15,13 +17,18 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("cc", cc);
     url.searchParams.set("l", "english");
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "MySteam/1.0",
-      },
-      next: { revalidate: 3600 },
-    });
+    const [res, igdbMedia] = await Promise.all([
+      fetch(url.toString(), {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "MySteam/1.0",
+        },
+        next: { revalidate: 3600 },
+      }),
+      isIgdbConfigured()
+        ? getIgdbMediaBySteamAppId(Number(appId))
+        : Promise.resolve(null),
+    ]);
 
     if (!res.ok) {
       return NextResponse.json({ error: "Steam details fetch failed" }, { status: res.status });
@@ -34,7 +41,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
-    return NextResponse.json(entry.data);
+    return NextResponse.json(mergeGameDetailsWithIgdb(entry.data, igdbMedia));
   } catch {
     return NextResponse.json({ error: "Failed to fetch game details" }, { status: 500 });
   }
