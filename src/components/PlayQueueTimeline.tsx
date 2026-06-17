@@ -131,9 +131,7 @@ export function PlayQueueTimeline({ queue, upcoming, heroAppId, onReorder }: Pla
   const isEmpty = visibleQueue.length === 0 && upcoming.length === 0;
   const canReorder = Boolean(onReorder) && sortedQueue.length > 1;
   const [reordering, setReordering] = useState(false);
-  const [upcomingOpen, setUpcomingOpen] = useState(
-    upcoming.length > 0 && (visibleQueue.length === 0 || upcoming.length <= 2)
-  );
+  const [upcomingOpen, setUpcomingOpen] = useState(upcoming.length > 0);
 
   function moveQueueItem(visibleIndex: number, direction: -1 | 1) {
     if (!onReorder) return;

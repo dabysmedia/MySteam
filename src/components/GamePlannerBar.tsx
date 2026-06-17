@@ -54,7 +54,7 @@ export function GamePlannerBar({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute left-0 top-full z-50 mt-2 min-w-[200px] overflow-hidden rounded-xl border border-steam-border bg-steam-dark/95 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-0">
+          <div className="absolute left-0 top-full z-50 mt-2 min-w-[200px] overflow-hidden rounded-xl border border-steam-border bg-steam-dark/95 shadow-2xl backdrop-blur-xl">
             {quickStatuses.map(({ status, label, icon: Icon }) => (
               <button
                 key={status}
