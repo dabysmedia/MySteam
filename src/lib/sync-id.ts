@@ -1,15 +1,14 @@
+import { isValidSyncId } from "./library-sync-id";
+
 const SYNC_ID_KEY = "mysteam-sync-id";
 const COOKIE_NAME = "mysteam-sync-id";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 5; // 5 years
 
-const SYNC_ID_PATTERN = /^[a-zA-Z0-9-]{8,64}$/;
+let resolvedSyncId: string | null = null;
+let initPromise: Promise<string> | null = null;
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
-}
-
-export function isValidSyncId(id: string): boolean {
-  return SYNC_ID_PATTERN.test(id);
 }
 
 function readCookie(): string | null {
@@ -33,27 +32,85 @@ function notifySyncIdChanged(): void {
   window.dispatchEvent(new CustomEvent("mysteam-sync-id-changed"));
 }
 
-export function getOrCreateSyncId(): string {
-  if (!isBrowser()) return "";
-
-  let id = localStorage.getItem(SYNC_ID_KEY) ?? readCookie();
-
-  if (!id) {
-    id = crypto.randomUUID();
-  }
-
+function createLocalSyncId(): string {
+  const id = crypto.randomUUID();
   persistSyncId(id);
   return id;
 }
 
+async function fetchSharedSyncId(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/sync-config", { cache: "no-store" });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { syncId?: string };
+    if (data.syncId && isValidSyncId(data.syncId)) {
+      return data.syncId;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+/** Resolve the sync ID once per session — all devices share the server library ID. */
+export async function initSyncId(): Promise<string> {
+  if (resolvedSyncId) return resolvedSyncId;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    if (!isBrowser()) return "";
+
+    if (adoptSyncIdFromUrl()) {
+      resolvedSyncId = getSyncId() ?? createLocalSyncId();
+      return resolvedSyncId;
+    }
+
+    const sharedId = await fetchSharedSyncId();
+    if (sharedId) {
+      const existing = getSyncId();
+      if (existing !== sharedId) {
+        persistSyncId(sharedId);
+        if (existing) notifySyncIdChanged();
+      }
+      resolvedSyncId = sharedId;
+      return sharedId;
+    }
+
+    const existing = getSyncId();
+    if (existing) {
+      resolvedSyncId = existing;
+      return existing;
+    }
+
+    resolvedSyncId = createLocalSyncId();
+    return resolvedSyncId;
+  })();
+
+  return initPromise;
+}
+
+export function getOrCreateSyncId(): string {
+  if (resolvedSyncId) return resolvedSyncId;
+
+  if (!isBrowser()) return "";
+
+  const existing = localStorage.getItem(SYNC_ID_KEY) ?? readCookie();
+  if (existing) return existing;
+
+  return createLocalSyncId();
+}
+
 export function getSyncId(): string | null {
   if (!isBrowser()) return null;
-  return localStorage.getItem(SYNC_ID_KEY) ?? readCookie();
+  return resolvedSyncId ?? localStorage.getItem(SYNC_ID_KEY) ?? readCookie();
 }
 
 export function setSyncId(id: string): boolean {
   if (!isBrowser() || !isValidSyncId(id)) return false;
   persistSyncId(id);
+  resolvedSyncId = id;
   notifySyncIdChanged();
   return true;
 }
@@ -106,3 +163,5 @@ export function adoptSyncIdFromUrl(): boolean {
 
   return changed;
 }
+
+export { isValidSyncId };

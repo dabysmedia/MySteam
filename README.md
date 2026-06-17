@@ -39,9 +39,8 @@ Locally, backlog data is stored under `./data`. Set `DATA_DIR` to override.
 
 ### How persistence works
 
-- Each browser gets a stable anonymous **sync ID** (localStorage + cookie)
-- Every backlog change syncs to disk via `/api/backlog` at `/data/backlog/{syncId}.json`
+- All devices share one **library ID** from the server (default: `mysteam-library`)
+- Each backlog change syncs to disk via `/api/backlog` at `/data/backlog/{syncId}.json`
 - On load, local and remote data merge (latest `updatedAt` wins per game)
 - Changes flush on tab close / background for reliability
-
-Your collection persists across redeployments, browser restarts, and cache clears (as long as the sync cookie remains).
+- Older per-device backlog files are merged into the shared library automatically

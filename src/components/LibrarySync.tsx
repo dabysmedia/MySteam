@@ -157,9 +157,9 @@ function SyncPanel({
   return (
     <div className="space-y-3">
       <p className="text-[11px] leading-relaxed text-steam-muted">
-        iPhone home-screen apps and browsers keep separate storage. Copy this link
-        on one device and open it on the other to share your library. Changes sync
-        every few seconds.
+        Your library syncs automatically across devices every few seconds. If
+        you use a separate browser profile or home-screen app, paste your sync
+        link here to link it.
       </p>
 
       <button

@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { BacklogGame } from "@/lib/types";
 import { isPersistenceEnabled, loadBacklogFromStore, saveBacklogToStore } from "@/lib/backlog-store";
-
-const SYNC_ID_PATTERN = /^[a-zA-Z0-9-]{8,64}$/;
-
-function validateSyncId(syncId: string | null): syncId is string {
-  return Boolean(syncId && SYNC_ID_PATTERN.test(syncId));
-}
+import { isValidSyncId } from "@/lib/library-sync-id";
 
 export async function GET(request: NextRequest) {
   const syncId =
     request.nextUrl.searchParams.get("syncId") ??
     request.headers.get("x-sync-id");
 
-  if (!validateSyncId(syncId)) {
+  if (!syncId || !isValidSyncId(syncId)) {
     return NextResponse.json({ error: "Valid syncId required" }, { status: 400 });
   }
 
@@ -39,7 +34,7 @@ async function handleSave(request: NextRequest, syncIdHeader: string | null) {
 
   const syncId = syncIdHeader ?? body.syncId ?? null;
 
-  if (!validateSyncId(syncId)) {
+  if (!syncId || !isValidSyncId(syncId)) {
     return NextResponse.json({ error: "Valid syncId required" }, { status: 400 });
   }
 

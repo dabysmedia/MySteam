@@ -1,10 +1,7 @@
 "use client";
 
 import type { BacklogGame, BacklogSnapshot } from "./types";
-import {
-  adoptSyncIdFromUrl,
-  getOrCreateSyncId,
-} from "./sync-id";
+import { getOrCreateSyncId, initSyncId } from "./sync-id";
 import { mergeBacklogs } from "./backlog-merge";
 
 const STORAGE_KEY = "mysteam-backlog";
@@ -97,6 +94,23 @@ async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | null> {
   }
 }
 
+async function syncPushWithMerge(localGames?: BacklogGame[]): Promise<boolean> {
+  const result = await withSyncLock(async () => {
+    const syncId = getOrCreateSyncId();
+    const local = localGames ?? readLocalBacklog();
+    const remote = await fetchRemoteSnapshot(syncId);
+    const merged = remote ? mergeBacklogs(local, remote.games) : local;
+
+    if (!gamesEqual(merged, local)) {
+      writeLocalBacklog(merged, false);
+    }
+
+    return pushRemoteBacklog(syncId, merged);
+  });
+
+  return result ?? false;
+}
+
 export async function pullAndMergeRemote(): Promise<{
   games: BacklogGame[];
   changed: boolean;
@@ -138,45 +152,22 @@ export function scheduleRemoteSync(games: BacklogGame[]): void {
 
   if (syncTimer) clearTimeout(syncTimer);
 
-  syncTimer = setTimeout(async () => {
-    const syncId = getOrCreateSyncId();
-    await withSyncLock(async () => {
-      await pushRemoteBacklog(syncId, games);
-    });
+  syncTimer = setTimeout(() => {
+    void syncPushWithMerge(games);
   }, SYNC_DEBOUNCE_MS);
 }
 
 export function flushRemoteSync(games: BacklogGame[]): void {
   if (!isBrowser()) return;
   if (syncTimer) clearTimeout(syncTimer);
-
-  const syncId = getOrCreateSyncId();
-  const body = JSON.stringify({ syncId, games });
-
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon(
-      "/api/backlog",
-      new Blob([body], { type: "application/json" })
-    );
-    return;
-  }
-
-  fetch("/api/backlog", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "x-sync-id": syncId,
-    },
-    body,
-    keepalive: true,
-  }).catch(() => {});
+  void syncPushWithMerge(games);
 }
 
 export async function syncBacklogOnLoad(): Promise<{
   games: BacklogGame[];
   persisted: boolean;
 }> {
-  adoptSyncIdFromUrl();
+  await initSyncId();
   const result = await pullAndMergeRemote();
   return { games: result.games, persisted: result.persisted };
 }
