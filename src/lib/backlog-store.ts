@@ -1,34 +1,16 @@
-import { get, put } from "@vercel/blob";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import path from "path";
+import { getDataDir } from "./data-dir";
 import type { BacklogGame, BacklogSnapshot } from "./types";
 
-const BACKLOG_PREFIX = "backlog";
+const BACKLOG_DIR = "backlog";
 
-type BlobAccess = "private" | "public";
-
-function backlogPath(syncId: string): string {
-  return `${BACKLOG_PREFIX}/${syncId}.json`;
+function backlogFilePath(syncId: string): string {
+  return path.join(getDataDir(), BACKLOG_DIR, `${syncId}.json`);
 }
 
-function blobOptions(): {
-  access: BlobAccess;
-  token?: string;
-  storeId?: string;
-} {
-  const options: {
-    access: BlobAccess;
-    token?: string;
-    storeId?: string;
-  } = { access: "private" };
-
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    options.token = process.env.BLOB_READ_WRITE_TOKEN;
-  }
-
-  if (process.env.BLOB_STORE_ID) {
-    options.storeId = process.env.BLOB_STORE_ID;
-  }
-
-  return options;
+async function ensureBacklogDir(): Promise<void> {
+  await mkdir(path.join(getDataDir(), BACKLOG_DIR), { recursive: true });
 }
 
 function parseSnapshot(raw: string): BacklogSnapshot {
@@ -53,24 +35,20 @@ function parseSnapshot(raw: string): BacklogSnapshot {
 }
 
 export function isPersistenceEnabled(): boolean {
-  if (process.env.BLOB_READ_WRITE_TOKEN) return true;
-  return Boolean(process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN);
+  return true;
 }
 
 export async function loadBacklogFromStore(syncId: string): Promise<BacklogSnapshot | null> {
-  if (!isPersistenceEnabled()) return null;
-
   try {
-    const blob = await get(backlogPath(syncId), blobOptions());
-    if (!blob || blob.statusCode === 304 || !blob.stream) {
-      return { games: [], savedAt: new Date(0).toISOString() };
-    }
-
-    const raw = await new Response(blob.stream).text();
+    const raw = await readFile(backlogFilePath(syncId), "utf8");
     if (!raw) return { games: [], savedAt: new Date(0).toISOString() };
 
     return parseSnapshot(raw);
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { games: [], savedAt: new Date(0).toISOString() };
+    }
+
     return null;
   }
 }
@@ -79,20 +57,14 @@ export async function saveBacklogToStore(
   syncId: string,
   games: BacklogGame[]
 ): Promise<BacklogSnapshot | null> {
-  if (!isPersistenceEnabled()) return null;
-
   const snapshot: BacklogSnapshot = {
     games,
     savedAt: new Date().toISOString(),
   };
 
   try {
-    await put(backlogPath(syncId), JSON.stringify(snapshot), {
-      ...blobOptions(),
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
+    await ensureBacklogDir();
+    await writeFile(backlogFilePath(syncId), JSON.stringify(snapshot), "utf8");
     return snapshot;
   } catch {
     return null;
