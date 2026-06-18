@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="no-scrollbar-x">
         <BacklogSyncProvider>
           <ServiceWorkerCleanup />
-          <div className="flex min-h-dvh flex-col overflow-x-hidden lg:px-[30px]">
+          <div className="flex min-h-dvh flex-col overflow-x-clip lg:px-[30px]">
             <header className="sticky top-0 z-40 glass">
               <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6 lg:mx-0 lg:max-w-none lg:px-2">
                 <div className="flex min-w-0 items-center gap-6">
@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <LibrarySync compact />
               </div>
             </header>
-            <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 overflow-x-hidden px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-5 md:pb-6 lg:mx-0 lg:max-w-none lg:overflow-visible lg:px-2 lg:pt-6">
+            <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 overflow-x-clip px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-5 md:pb-6 lg:mx-0 lg:max-w-none lg:overflow-visible lg:px-2 lg:pt-6">
               {children}
             </main>
             <SearchFab />

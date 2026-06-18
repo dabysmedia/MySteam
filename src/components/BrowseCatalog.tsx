@@ -7,13 +7,16 @@ import { formatPrice } from "@/lib/utils";
 
 interface BrowseGameTileProps {
   game: SteamFeaturedItem;
+  unreleased?: boolean;
 }
 
-function BrowseGameTile({ game }: BrowseGameTileProps) {
+function BrowseGameTile({ game, unreleased }: BrowseGameTileProps) {
   const price =
-    game.final_price === 0
-      ? "Free"
-      : formatPrice(game.final_price, game.currency);
+    unreleased && game.final_price === 0
+      ? "Coming Soon"
+      : game.final_price === 0
+        ? "Free"
+        : formatPrice(game.final_price, game.currency);
 
   return (
     <Link
@@ -47,9 +50,10 @@ function BrowseGameTile({ game }: BrowseGameTileProps) {
 interface BrowseSectionProps {
   title: string;
   games: SteamFeaturedItem[];
+  unreleased?: boolean;
 }
 
-function BrowseSection({ title, games }: BrowseSectionProps) {
+function BrowseSection({ title, games, unreleased }: BrowseSectionProps) {
   if (games.length === 0) return null;
 
   return (
@@ -57,7 +61,7 @@ function BrowseSection({ title, games }: BrowseSectionProps) {
       <div className="steamos-section-header">{title}</div>
       <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-3 lg:p-4 xl:grid-cols-6">
         {games.map((game) => (
-          <BrowseGameTile key={game.id} game={game} />
+          <BrowseGameTile key={game.id} game={game} unreleased={unreleased} />
         ))}
       </div>
     </section>
@@ -66,12 +70,11 @@ function BrowseSection({ title, games }: BrowseSectionProps) {
 
 interface BrowseCatalogProps {
   popular: SteamFeaturedItem[];
-  newReleases: SteamFeaturedItem[];
-  comingSoon: SteamFeaturedItem[];
+  upcomingReleases: SteamFeaturedItem[];
   loading?: boolean;
 }
 
-export function BrowseCatalog({ popular, newReleases, comingSoon, loading }: BrowseCatalogProps) {
+export function BrowseCatalog({ popular, upcomingReleases, loading }: BrowseCatalogProps) {
   if (loading) {
     return (
       <div className="space-y-4">
@@ -92,8 +95,7 @@ export function BrowseCatalog({ popular, newReleases, comingSoon, loading }: Bro
   return (
     <div className="space-y-4 lg:space-y-5">
       <BrowseSection title="Popular Now" games={popular} />
-      <BrowseSection title="New Releases" games={newReleases} />
-      <BrowseSection title="Coming Soon" games={comingSoon} />
+      <BrowseSection title="Upcoming Releases" games={upcomingReleases} unreleased />
     </div>
   );
 }

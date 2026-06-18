@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SteamBrowseResponse, SteamFeaturedItem } from "@/lib/browse-types";
-import { buildCuratedPopularGames, filterFeaturedGames } from "@/lib/steam-search-filters";
+import {
+  buildIgdbPopularNow,
+  buildIgdbUpcomingReleases,
+  BROWSE_POPULAR_LIMIT,
+} from "@/lib/igdb-browse";
+import { isIgdbConfigured } from "@/lib/igdb";
+import { buildCuratedPopularGames, filterUpcomingGames } from "@/lib/steam-search-filters";
 
 interface CategoryBlock {
   name?: string;
@@ -11,6 +17,25 @@ interface FeaturedCategoriesResponse {
   top_sellers?: CategoryBlock;
   new_releases?: CategoryBlock;
   coming_soon?: CategoryBlock;
+}
+
+function mergeBrowseSection(
+  primary: SteamFeaturedItem[],
+  secondary: SteamFeaturedItem[],
+  limit = BROWSE_POPULAR_LIMIT
+): SteamFeaturedItem[] {
+  const merged = [...primary];
+  if (merged.length >= limit) return merged.slice(0, limit);
+
+  const seen = new Set(merged.map((game) => game.id));
+  for (const game of secondary) {
+    if (seen.has(game.id)) continue;
+    merged.push(game);
+    seen.add(game.id);
+    if (merged.length >= limit) break;
+  }
+
+  return merged.length > 0 ? merged : secondary.slice(0, limit);
 }
 
 export async function GET(request: NextRequest) {
@@ -36,16 +61,19 @@ export async function GET(request: NextRequest) {
 
     const data = (await res.json()) as FeaturedCategoriesResponse;
 
-    const [popular, newReleases, comingSoon] = await Promise.all([
-      buildCuratedPopularGames(cc),
-      filterFeaturedGames(data.new_releases?.items ?? [], cc),
-      filterFeaturedGames(data.coming_soon?.items ?? [], cc),
-    ]);
+    const [popularFromIgdb, curatedPopular, upcomingFromIgdb, upcomingFromSteam] =
+      await Promise.all([
+        isIgdbConfigured() ? buildIgdbPopularNow(cc, BROWSE_POPULAR_LIMIT) : Promise.resolve([]),
+        buildCuratedPopularGames(cc, BROWSE_POPULAR_LIMIT),
+        isIgdbConfigured()
+          ? buildIgdbUpcomingReleases(cc, BROWSE_POPULAR_LIMIT)
+          : Promise.resolve([]),
+        filterUpcomingGames(data.coming_soon?.items ?? [], cc, BROWSE_POPULAR_LIMIT),
+      ]);
 
     const response: SteamBrowseResponse = {
-      popular,
-      newReleases,
-      comingSoon,
+      popular: mergeBrowseSection(popularFromIgdb, curatedPopular),
+      upcomingReleases: mergeBrowseSection(upcomingFromIgdb, upcomingFromSteam),
     };
 
     return NextResponse.json(response);

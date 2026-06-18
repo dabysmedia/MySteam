@@ -116,7 +116,7 @@ export default function GameDetailPage() {
   };
 
   return (
-    <div className="overflow-x-hidden pb-8">
+    <div className="overflow-x-clip pb-8 lg:overflow-visible">
       <div className="full-bleed mb-6 lg:px-0">
         <CinematicHero
           movies={game.movies}
@@ -161,8 +161,8 @@ export default function GameDetailPage() {
 
         <GameStatsPanel stats={stats} loading={statsLoading} />
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-          <div className="min-w-0 flex-1 space-y-5 lg:space-y-6">
+        <div className="flex min-w-0 flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start lg:gap-8 lg:overflow-visible">
+          <div className="min-w-0 space-y-5 lg:col-span-8 lg:space-y-6 xl:col-span-8">
             <MediaShowcase
               movies={game.movies}
               screenshots={game.screenshots}
@@ -185,7 +185,8 @@ export default function GameDetailPage() {
             </div>
           </div>
 
-          <aside className="w-full shrink-0 space-y-4 lg:w-80 lg:space-y-5 xl:w-[22rem]">
+          <aside className="w-full shrink-0 lg:col-span-4 lg:sticky lg:top-[4.75rem] lg:w-auto lg:self-start xl:col-span-4">
+            <div className="space-y-4 lg:max-h-[calc(100dvh-5.5rem)] lg:space-y-5 lg:overflow-y-auto lg:overscroll-contain scrollbar-thin">
             <div className="steamos-panel steamos-glow p-4">
               <div className="mb-4 border-b border-steam-border pb-4">
                 {game.price_overview ? (
@@ -286,6 +287,7 @@ export default function GameDetailPage() {
               View on Steam Store
               <ExternalLink className="h-3 w-3" />
             </a>
+            </div>
           </aside>
         </div>
       </div>

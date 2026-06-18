@@ -93,7 +93,7 @@ const AAA_STUDIO_PATTERNS = [
   "wb games",
 ] as const;
 
-interface SteamAppMeta {
+export interface SteamAppMeta {
   type?: string;
   name?: string;
   genres: string[];
@@ -145,6 +145,43 @@ function isPlayableGame(meta: SteamAppMeta): boolean {
   if (meta.type !== "game") return false;
   if (isFreeGame(meta)) return false;
   return true;
+}
+
+export function isPlayableSteamStoreGame(meta: SteamAppMeta): boolean {
+  return isPlayableGame(meta);
+}
+
+/** Matches the story-focused taste used to curate the planner queue. */
+export function isSingleplayerStoryGame(meta: SteamAppMeta): boolean {
+  if (!isPlayableGame(meta)) return false;
+
+  const categories = new Set(meta.categories);
+  if (!categories.has("Single-player")) return false;
+  if (categories.has("MMO")) return false;
+  if (categories.has("Online PvP") || categories.has("PvP")) return false;
+
+  for (const genre of meta.genres) {
+    if (NON_STORY_GENRES.has(genre)) return false;
+  }
+
+  return scoreSingleplayerStory(meta) >= 35;
+}
+
+/** Story taste for unreleased / preorder titles — allows games without a price yet. */
+export function isUpcomingStoryGame(meta: SteamAppMeta): boolean {
+  if (meta.type && EXCLUDED_APP_TYPES.has(meta.type)) return false;
+  if (meta.type && meta.type !== "game") return false;
+
+  const categories = new Set(meta.categories);
+  if (!categories.has("Single-player")) return false;
+  if (categories.has("MMO")) return false;
+  if (categories.has("Online PvP") || categories.has("PvP")) return false;
+
+  for (const genre of meta.genres) {
+    if (NON_STORY_GENRES.has(genre)) return false;
+  }
+
+  return scoreSingleplayerStory(meta) >= 35;
 }
 
 export function scoreSingleplayerStory(meta: SteamAppMeta): number {
@@ -214,7 +251,7 @@ export function scoreAaaAndPopularity(
   return score;
 }
 
-async function fetchSteamAppMeta(
+export async function fetchSteamAppMeta(
   appIds: number[],
   cc: string
 ): Promise<Map<number, SteamAppMeta>> {
@@ -478,8 +515,8 @@ export async function filterSteamSearchResults<T extends { id: number; name: str
 
   return withoutHardware.filter((item) => {
     const meta = metas.get(item.id);
-    if (!meta) return true;
-    return isPlayableGame(meta);
+    if (!meta) return false;
+    return isSingleplayerStoryGame(meta);
   });
 }
 
@@ -498,6 +535,33 @@ export async function filterFeaturedGames(
   const filtered = await filterSteamSearchResults(unique, cc);
   const allowed = new Set(filtered.map((item) => item.id));
   return unique.filter((item) => allowed.has(item.id)).slice(0, limit);
+}
+
+export async function filterUpcomingGames(
+  items: SteamFeaturedItem[],
+  cc = "US",
+  limit = 12
+): Promise<SteamFeaturedItem[]> {
+  const seen = new Set<number>();
+  const unique = items.filter((item) => {
+    if (item.type !== 0 || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+
+  if (!unique.length) return [];
+
+  const metas = await fetchSteamAppMeta(
+    unique.map((item) => item.id),
+    cc
+  );
+
+  return unique
+    .filter((item) => {
+      const meta = metas.get(item.id);
+      return meta && isUpcomingStoryGame(meta);
+    })
+    .slice(0, limit);
 }
 
 export async function buildCuratedPopularGames(
@@ -522,7 +586,7 @@ export async function buildCuratedPopularGames(
   const ranked = candidates
     .map((item) => {
       const meta = metas.get(item.id);
-      if (!meta || !isPlayableGame(meta)) return null;
+      if (!meta || !isSingleplayerStoryGame(meta)) return null;
 
       const score =
         scoreSingleplayerStory(meta) + scoreAaaAndPopularity(meta, item);

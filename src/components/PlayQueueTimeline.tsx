@@ -58,50 +58,31 @@ function QueueMeta({ game }: { game: BacklogGame }) {
   );
 }
 
-function UpNextSlot({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div
-      className={cn(
-        "relative mx-2 my-2 overflow-hidden rounded-[var(--radius-steamos-lg)]",
-        "border border-steam-accent/30 ring-1 ring-steam-accent/25",
-        "bg-gradient-to-br from-steam-accent/[0.16] via-steam-accent/[0.06] to-[#0c1118]/80",
-        "shadow-[inset_0_1px_0_rgba(26,159,255,0.15),0_8px_28px_rgba(26,159,255,0.1)]",
-        className
-      )}
-    >
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-steam-accent via-steam-accent/80 to-steam-accent/40" />
-      {children}
-    </div>
-  );
-}
+const upNextShellClass =
+  "relative overflow-hidden outline outline-1 -outline-offset-1 outline-steam-accent/40 shadow-[inset_0_1px_0_rgba(26,159,255,0.12)] before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-20 before:w-1 before:bg-gradient-to-b before:from-steam-accent before:via-steam-accent/80 before:to-steam-accent/40";
 
 function QueueListRow({
   game,
   isNextUp,
-  skipSlot,
+  skipShell,
   className,
 }: {
   game: BacklogGame;
   isNextUp: boolean;
-  skipSlot?: boolean;
+  skipShell?: boolean;
   className?: string;
 }) {
-  const row = (
+  return (
     <GameListRow
       game={game}
       meta={<QueueMeta game={game} />}
-      titleClassName={isNextUp ? "text-white lg:text-base" : undefined}
+      titleClassName={isNextUp ? "text-white" : undefined}
       coverClassName={
         isNextUp ? "ring-2 ring-steam-accent/70 shadow-[0_0_28px_rgba(26,159,255,0.35)]" : undefined
       }
-      linkClassName={isNextUp ? "py-1" : undefined}
-      className={cn(isNextUp ? "border-b-0" : undefined, className)}
+      className={cn(isNextUp && !skipShell && upNextShellClass, className)}
     />
   );
-
-  if (!isNextUp || skipSlot) return row;
-
-  return <UpNextSlot>{row}</UpNextSlot>;
 }
 
 function DraggableQueueRow({
@@ -118,12 +99,12 @@ function DraggableQueueRow({
   const dragControls = useDragControls();
 
   const rowBody = (
-    <div className="flex items-stretch">
+    <div className="flex w-full items-stretch">
       <button
         type="button"
         onPointerDown={(event) => dragControls.start(event)}
         className={cn(
-          "flex w-10 shrink-0 cursor-grab touch-none items-center justify-center transition-colors hover:text-steam-accent active:cursor-grabbing sm:w-11",
+          "flex w-10 shrink-0 cursor-grab touch-none items-center justify-center self-stretch transition-colors hover:text-steam-accent active:cursor-grabbing sm:w-11",
           isNextUp ? "text-steam-accent/70" : "text-steam-muted"
         )}
         aria-label={`Reorder ${game.name}`}
@@ -131,7 +112,7 @@ function DraggableQueueRow({
         <GripVertical className="h-4 w-4" />
       </button>
       <div className="min-w-0 flex-1">
-        <QueueListRow game={game} isNextUp={isNextUp} skipSlot className="border-b-0" />
+        <QueueListRow game={game} isNextUp={isNextUp} skipShell className="border-b-0" />
       </div>
     </div>
   );
@@ -145,7 +126,9 @@ function DraggableQueueRow({
       onDragEnd={onDragEnd}
       className={cn(
         "relative z-0 last:border-b-0",
-        isNextUp ? "border-b-0 bg-transparent" : "border-b border-steam-border bg-steam-dark"
+        isNextUp
+          ? cn(upNextShellClass, "border-b border-steam-border bg-transparent")
+          : "border-b border-steam-border bg-steam-dark"
       )}
       whileDrag={{
         zIndex: 50,
@@ -154,7 +137,7 @@ function DraggableQueueRow({
       }}
       transition={{ duration: 0.15 }}
     >
-      {isNextUp ? <UpNextSlot>{rowBody}</UpNextSlot> : rowBody}
+      {rowBody}
     </Reorder.Item>
   );
 }

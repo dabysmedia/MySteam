@@ -174,3 +174,42 @@ limit ${limit};`
 export async function verifyIgdbAuth(): Promise<boolean> {
   return (await getAccessToken()) !== null;
 }
+
+export function getSteamAppIdFromIgdbGame(game: {
+  external_games?: IgdbExternalGameRef[];
+}): number | null {
+  const links = game.external_games ?? [];
+  const steamLink =
+    links.find((entry) => entry.category === STEAM_EXTERNAL_CATEGORY && /^\d+$/.test(entry.uid ?? "")) ??
+    links.find((entry) => entry.category == null && /^\d+$/.test(entry.uid ?? ""));
+
+  if (!steamLink?.uid) return null;
+  const appId = Number(steamLink.uid);
+  return Number.isFinite(appId) && appId > 0 ? appId : null;
+}
+
+export async function fetchIgdbGamesByIds(
+  ids: number[],
+  fields: string
+): Promise<IgdbGameRow[]> {
+  if (!ids.length || !isIgdbConfigured()) return [];
+
+  const games = await igdbQuery<IgdbGameRow>(
+    "games",
+    `fields ${fields}; where id = (${ids.join(",")}); limit ${ids.length};`
+  );
+
+  return games ?? [];
+}
+
+export async function fetchIgdbPopularGameIds(
+  popularityType: number,
+  limit: number
+): Promise<number[]> {
+  const rows = await igdbQuery<{ game_id: number }>(
+    "popularity_primitives",
+    `fields game_id; where popularity_type = ${popularityType}; sort value desc; limit ${limit};`
+  );
+
+  return rows?.map((row) => row.game_id) ?? [];
+}

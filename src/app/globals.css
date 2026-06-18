@@ -35,7 +35,7 @@
 
 html {
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -47,7 +47,7 @@ body {
   font-family: var(--font-sans), "Motiva Sans", Arial, sans-serif;
   font-size: 15px;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -296,7 +296,7 @@ body {
 }
 
 .no-scrollbar-x {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 

@@ -30,7 +30,7 @@ function BrowseContent() {
         if (!res.ok) throw new Error("browse failed");
         setCatalog(await res.json());
       } catch {
-        setCatalog({ popular: [], newReleases: [], comingSoon: [] });
+        setCatalog({ popular: [], upcomingReleases: [] });
       } finally {
         setCatalogLoading(false);
       }
@@ -72,7 +72,7 @@ function BrowseContent() {
             Browse Steam
           </h1>
           <p className="mt-1 text-sm text-steam-muted lg:mt-2 lg:text-[15px]">
-            Discover popular and new games — search as you type
+            Discover popular and upcoming story games — search as you type
           </p>
         </div>
         <p className="hidden text-sm text-steam-muted lg:block lg:max-w-xs lg:text-right">
@@ -139,8 +139,7 @@ function BrowseContent() {
       {showCatalog && (
         <BrowseCatalog
           popular={catalog?.popular ?? []}
-          newReleases={catalog?.newReleases ?? []}
-          comingSoon={catalog?.comingSoon ?? []}
+          upcomingReleases={catalog?.upcomingReleases ?? []}
           loading={catalogLoading}
         />
       )}

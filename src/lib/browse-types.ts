@@ -23,6 +23,5 @@ export interface SteamBrowseCategory {
 
 export interface SteamBrowseResponse {
   popular: SteamFeaturedItem[];
-  newReleases: SteamFeaturedItem[];
-  comingSoon: SteamFeaturedItem[];
+  upcomingReleases: SteamFeaturedItem[];
 }
