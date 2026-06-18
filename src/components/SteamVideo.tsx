@@ -16,6 +16,11 @@ interface SteamVideoProps {
   className?: string;
   onEnded?: () => void;
   mediaRef?: Ref<HTMLVideoElement>;
+  onPlayingChange?: (playing: boolean) => void;
+  volume?: number;
+  onVolumeChange?: (volume: number) => void;
+  onMutedChange?: (muted: boolean) => void;
+  showVolumeSlider?: boolean;
 }
 
 export function SteamVideo({
@@ -29,8 +34,15 @@ export function SteamVideo({
   className = "",
   onEnded,
   mediaRef,
+  onPlayingChange,
+  volume,
+  onVolumeChange,
+  onMutedChange,
+  showVolumeSlider = false,
 }: SteamVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  onPlayingChangeRef.current = onPlayingChange;
 
   const setVideoRef = (el: HTMLVideoElement | null) => {
     videoRef.current = el;
@@ -47,6 +59,7 @@ export function SteamVideo({
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
   const [isMuted, setIsMuted] = useState(muted);
+  const [internalVolume, setInternalVolume] = useState(volume ?? 1);
   const [progress, setProgress] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
@@ -169,21 +182,68 @@ export function SteamVideo({
   };
 
   useEffect(() => {
-    setIsMuted(muted);
-  }, [muted]);
+    if (onMutedChange === undefined) {
+      setIsMuted(muted);
+    }
+  }, [muted, onMutedChange]);
+
+  const displayMuted = onMutedChange !== undefined ? muted : isMuted;
+  const displayVolume = onVolumeChange !== undefined ? (volume ?? 0) : internalVolume;
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.muted = isMuted;
+      videoRef.current.muted = displayMuted;
     }
-  }, [isMuted]);
+  }, [displayMuted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (displayMuted) return;
+    video.volume = Math.min(1, Math.max(0, displayVolume));
+  }, [displayVolume, displayMuted]);
+
+  const setVolume = (next: number) => {
+    const clamped = Math.min(1, Math.max(0, next));
+    if (onVolumeChange) {
+      onVolumeChange(clamped);
+      if (onMutedChange) {
+        onMutedChange(clamped === 0);
+      }
+      return;
+    }
+    setInternalVolume(clamped);
+    if (clamped === 0) setIsMuted(true);
+    else setIsMuted(false);
+  };
+
+  const toggleMute = () => {
+    const next = !displayMuted;
+    if (onMutedChange) {
+      onMutedChange(next);
+      if (!next && onVolumeChange && (volume ?? 0) === 0) {
+        onVolumeChange(0.5);
+      }
+      return;
+    }
+    if (!next && internalVolume === 0) {
+      setInternalVolume(0.5);
+    }
+    setIsMuted(next);
+  };
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPlay = () => {
+      setIsPlaying(true);
+      onPlayingChangeRef.current?.(true);
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      onPlayingChangeRef.current?.(false);
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -217,7 +277,7 @@ export function SteamVideo({
         ref={setVideoRef}
         poster={autoPlay ? undefined : poster}
         loop={loop}
-        muted={isMuted}
+        muted={displayMuted}
         playsInline
         controls={controls}
         onEnded={onEnded}
@@ -280,17 +340,32 @@ export function SteamVideo({
         </div>
       )}
 
-      {!controls && ready && (
-        <button
-          type="button"
-          onClick={() => setIsMuted((m) => !m)}
-          className={`absolute right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-colors hover:bg-black/70 ${
+      {!controls && ready && !error && (
+        <div
+          className={`absolute right-3 z-20 flex items-center gap-2 ${
             seekable ? "bottom-8" : "bottom-3"
           }`}
-          aria-label={isMuted ? "Unmute" : "Mute"}
         >
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
+          {showVolumeSlider && (
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={displayMuted ? 0 : Math.round(displayVolume * 100)}
+              onChange={(e) => setVolume(Number(e.target.value) / 100)}
+              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-white/25 accent-steam-accent [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+              aria-label="Volume"
+            />
+          )}
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-colors hover:bg-black/70"
+            aria-label={displayMuted ? "Unmute" : "Mute"}
+          >
+            {displayMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+        </div>
       )}
     </div>
   );

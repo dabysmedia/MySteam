@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import type { SteamMovie, SteamScreenshot } from "@/lib/types";
@@ -23,6 +23,9 @@ interface CinematicHeroProps {
 }
 
 const SLIDE_INTERVAL = 5000;
+const HERO_SCRIM_FADE_DELAY_MS = 3500;
+const HERO_SCRIM_FADE_DURATION_MS = 2000;
+const HERO_TARGET_VOLUME = 0.15;
 
 export function CinematicHero({
   movies,
@@ -44,9 +47,115 @@ export function CinematicHero({
   const [mode, setMode] = useState<"trailer" | "slideshow">(
     trailerSource ? "trailer" : "slideshow"
   );
+  const [scrimHidden, setScrimHidden] = useState(false);
+  const [heroMuted, setHeroMuted] = useState(true);
+  const [heroVolume, setHeroVolume] = useState(0);
+  const scrimFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const volumeRampRef = useRef<number | null>(null);
+  const userAudioOverrideRef = useRef(false);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const heroMediaRef = useRef<HTMLVideoElement>(null);
+  const visibilityPausedRef = useRef(false);
+  const wasPlayingBeforeHiddenRef = useRef(false);
+  const [heroVisible, setHeroVisible] = useState(true);
 
   const currentTrailer = playable[trailerIndex] ?? highlight;
   const currentSource = currentTrailer ? getTrailerSource(currentTrailer) : trailerSource;
+
+  const stopVolumeRamp = useCallback(() => {
+    if (volumeRampRef.current !== null) {
+      cancelAnimationFrame(volumeRampRef.current);
+      volumeRampRef.current = null;
+    }
+  }, []);
+
+  const resetAudio = useCallback(() => {
+    stopVolumeRamp();
+    userAudioOverrideRef.current = false;
+    setHeroVolume(0);
+    setHeroMuted(true);
+  }, [stopVolumeRamp]);
+
+  const handleHeroVolumeChange = useCallback(
+    (volume: number) => {
+      userAudioOverrideRef.current = true;
+      stopVolumeRamp();
+      setHeroVolume(volume);
+      setHeroMuted(volume === 0);
+    },
+    [stopVolumeRamp]
+  );
+
+  const handleHeroMutedChange = useCallback(
+    (muted: boolean) => {
+      userAudioOverrideRef.current = true;
+      stopVolumeRamp();
+      setHeroMuted(muted);
+    },
+    [stopVolumeRamp]
+  );
+
+  const clearScrimFadeTimer = useCallback(() => {
+    if (scrimFadeTimerRef.current) {
+      clearTimeout(scrimFadeTimerRef.current);
+      scrimFadeTimerRef.current = null;
+    }
+  }, []);
+
+  const resetScrim = useCallback(() => {
+    clearScrimFadeTimer();
+    setScrimHidden(false);
+    resetAudio();
+  }, [clearScrimFadeTimer, resetAudio]);
+
+  const handleTrailerPlayingChange = useCallback(
+    (playing: boolean) => {
+      if (mode !== "trailer") return;
+      if (visibilityPausedRef.current && !playing) return;
+
+      if (playing) {
+        if (scrimHidden) return;
+        clearScrimFadeTimer();
+        scrimFadeTimerRef.current = setTimeout(() => {
+          setScrimHidden(true);
+        }, HERO_SCRIM_FADE_DELAY_MS);
+        return;
+      }
+
+      resetScrim();
+    },
+    [mode, scrimHidden, clearScrimFadeTimer, resetScrim]
+  );
+
+  useEffect(() => {
+    resetScrim();
+  }, [mode, trailerIndex, currentTrailer?.id, resetScrim]);
+
+  useEffect(() => () => clearScrimFadeTimer(), [clearScrimFadeTimer]);
+
+  useEffect(() => {
+    if (!scrimHidden || userAudioOverrideRef.current) return;
+
+    setHeroMuted(false);
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      if (userAudioOverrideRef.current) return;
+
+      const progress = Math.min(1, (now - start) / HERO_SCRIM_FADE_DURATION_MS);
+      const eased = 1 - (1 - progress) ** 2;
+      setHeroVolume(eased * HERO_TARGET_VOLUME);
+
+      if (progress < 1) {
+        volumeRampRef.current = requestAnimationFrame(tick);
+      } else {
+        volumeRampRef.current = null;
+      }
+    };
+
+    volumeRampRef.current = requestAnimationFrame(tick);
+    return () => stopVolumeRamp();
+  }, [scrimHidden, stopVolumeRamp]);
 
   const advanceTrailer = useCallback(() => {
     if (playable.length > 1) {
@@ -55,27 +164,71 @@ export function CinematicHero({
   }, [playable.length]);
 
   useEffect(() => {
-    if (mode !== "slideshow" || !hasScreenshots) return;
+    const node = heroRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting;
+        setHeroVisible(visible);
+
+        const video = heroMediaRef.current;
+        if (!video || mode !== "trailer") return;
+
+        if (visible) {
+          if (visibilityPausedRef.current && wasPlayingBeforeHiddenRef.current) {
+            visibilityPausedRef.current = false;
+            video.play().catch(() => {});
+          }
+          return;
+        }
+
+        if (!video.paused) {
+          wasPlayingBeforeHiddenRef.current = true;
+          visibilityPausedRef.current = true;
+          video.pause();
+        } else {
+          wasPlayingBeforeHiddenRef.current = false;
+        }
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [mode, currentTrailer?.id]);
+
+  useEffect(() => {
+    if (mode !== "slideshow" || !hasScreenshots || !heroVisible) return;
     const timer = setInterval(() => {
       setSlideIndex((i) => (i + 1) % screenshots!.length);
     }, SLIDE_INTERVAL);
     return () => clearInterval(timer);
-  }, [mode, hasScreenshots, screenshots]);
+  }, [mode, hasScreenshots, screenshots, heroVisible]);
 
   const showTrailer = mode === "trailer" && currentSource;
 
   return (
-    <div className="relative aspect-[16/9] w-full overflow-hidden bg-black sm:aspect-[21/9] lg:rounded-2xl lg:ring-1 lg:ring-white/10">
+    <div
+      ref={heroRef}
+      className="relative aspect-[16/9] w-full overflow-hidden bg-black sm:aspect-[21/9] lg:rounded-2xl lg:ring-1 lg:ring-white/10"
+    >
       {/* Media layer */}
       {showTrailer ? (
         <SteamVideo
           key={currentTrailer?.id ?? "hero-trailer"}
           source={currentSource}
           poster={currentTrailer?.thumbnail ?? fallbackImage}
+          mediaRef={heroMediaRef}
           autoPlay
           loop={playable.length <= 1}
-          muted
+          muted={heroMuted}
+          volume={heroVolume}
+          onVolumeChange={handleHeroVolumeChange}
+          onMutedChange={handleHeroMutedChange}
+          showVolumeSlider
           onEnded={playable.length > 1 ? advanceTrailer : undefined}
+          onPlayingChange={handleTrailerPlayingChange}
           className="absolute inset-0 h-full w-full"
         />
       ) : hasScreenshots ? (
@@ -111,10 +264,17 @@ export function CinematicHero({
         />
       )}
 
-      {/* SteamOS vignette + gradient scrim */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0e12] via-[#0a0e12]/40 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0a0e12]/60 via-transparent to-transparent" />
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.5)]" />
+      {/* SteamOS vignette + gradient scrim — fades while trailer plays */}
+      <motion.div
+        className="pointer-events-none absolute inset-0"
+        initial={false}
+        animate={{ opacity: scrimHidden ? 0 : 1 }}
+        transition={{ duration: HERO_SCRIM_FADE_DURATION_MS / 1000, ease: "easeOut" }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e12] via-[#0a0e12]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0a0e12]/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.5)]" />
+      </motion.div>
 
       {/* Content overlay */}
       <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 lg:p-8">

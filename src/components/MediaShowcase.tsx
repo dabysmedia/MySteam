@@ -64,6 +64,10 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   const trailerRailRef = useRef<HTMLDivElement>(null);
   const wasTrailerFullscreenRef = useRef(false);
   const screenshotPreviewRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const [sectionVisible, setSectionVisible] = useState(false);
+  const skipScreenshotScrollRef = useRef(true);
+  const skipTrailerScrollRef = useRef(true);
   const [thumbStripHeight, setThumbStripHeight] = useState<number | undefined>(undefined);
 
   const currentTrailer = playable[activeTrailer];
@@ -168,12 +172,14 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   }, [screenshots]);
 
   useEffect(() => {
-    if (!hasScreenshots || screenshots!.length <= 1 || slideshowPaused || lightboxOpen) return;
+    if (!hasScreenshots || screenshots!.length <= 1 || slideshowPaused || lightboxOpen || !sectionVisible) {
+      return;
+    }
     const timer = setInterval(() => {
       setActiveScreenshot((i) => (i + 1) % screenshots!.length);
     }, 4000);
     return () => clearInterval(timer);
-  }, [hasScreenshots, screenshots, slideshowPaused, lightboxOpen]);
+  }, [hasScreenshots, screenshots, slideshowPaused, lightboxOpen, sectionVisible]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -189,19 +195,43 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   }, [lightboxOpen, closeLightbox, goToPrevScreenshot, goToNextScreenshot]);
 
   useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setSectionVisible(entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (skipScreenshotScrollRef.current) {
+      skipScreenshotScrollRef.current = false;
+      return;
+    }
+    if (!sectionVisible) return;
+
     thumbRefs.current[activeScreenshot]?.scrollIntoView({
       block: "nearest",
       behavior: "smooth",
     });
-  }, [activeScreenshot]);
+  }, [activeScreenshot, sectionVisible]);
 
   useEffect(() => {
+    if (skipTrailerScrollRef.current) {
+      skipTrailerScrollRef.current = false;
+      return;
+    }
+    if (!sectionVisible) return;
+
     trailerThumbRefs.current[activeTrailer]?.scrollIntoView({
       block: "nearest",
       inline: "nearest",
       behavior: "smooth",
     });
-  }, [activeTrailer]);
+  }, [activeTrailer, sectionVisible]);
 
   const hasTrailers = playable.length > 0;
   const sideBySide = hasTrailers && hasScreenshots;
@@ -249,7 +279,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
 
   return (
     <>
-      <section className="steamos-panel overflow-hidden">
+      <section ref={sectionRef} className="steamos-panel overflow-hidden">
         <div className="steamos-section-header flex items-center justify-between">
           <span>Media</span>
           {hasScreenshots && (
