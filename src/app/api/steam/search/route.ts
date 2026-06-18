@@ -1,37 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { filterSteamSearchResults } from "@/lib/steam-search-filters";
-import type { SteamSearchResponse } from "@/lib/types";
+import { filterSteamSearchResults, isSteamHardware } from "@/lib/steam-search-filters";
+import { fetchSteamStoreSearch } from "@/lib/steam-store-search";
 
 export async function GET(request: NextRequest) {
   const term = request.nextUrl.searchParams.get("term");
   const cc = request.nextUrl.searchParams.get("cc") ?? "US";
+  const autocomplete = request.nextUrl.searchParams.get("autocomplete") === "1";
 
   if (!term || term.trim().length < 2) {
     return NextResponse.json({ error: "Search term must be at least 2 characters" }, { status: 400 });
   }
 
   try {
-    const url = new URL("https://store.steampowered.com/api/storesearch/");
-    url.searchParams.set("term", term.trim());
-    url.searchParams.set("cc", cc);
-    url.searchParams.set("l", "english");
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "MySteam/1.0",
-      },
-      next: { revalidate: 300 },
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: "Steam search failed" }, { status: res.status });
+    const apps = await fetchSteamStoreSearch(term, cc);
+    if (apps.length === 0) {
+      return NextResponse.json({ error: "No Steam results found" }, { status: 404 });
     }
 
-    const data = (await res.json()) as SteamSearchResponse;
-    const apps = (data.items ?? []).filter((item) => item.type === "app");
-    const games = await filterSteamSearchResults(apps, cc);
+    const limit = autocomplete ? 8 : 30;
+    const candidates = apps.slice(0, limit);
 
+    if (autocomplete) {
+      const games = candidates.filter((item) => !isSteamHardware(item));
+      return NextResponse.json({ total: games.length, items: games });
+    }
+
+    const games = await filterSteamSearchResults(candidates, cc);
     return NextResponse.json({ total: games.length, items: games });
   } catch {
     return NextResponse.json({ error: "Failed to search Steam store" }, { status: 500 });

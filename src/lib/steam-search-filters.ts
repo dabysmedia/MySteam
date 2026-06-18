@@ -513,11 +513,18 @@ export async function filterSteamSearchResults<T extends { id: number; name: str
     cc
   );
 
-  return withoutHardware.filter((item) => {
+  const filtered = withoutHardware.filter((item) => {
     const meta = metas.get(item.id);
-    if (!meta) return false;
+    if (!meta) return true;
     return isSingleplayerStoryGame(meta);
   });
+
+  // If Steam metadata was slow/unavailable for most hits, don't return an empty search.
+  if (filtered.length === 0 && withoutHardware.length > 0) {
+    return withoutHardware;
+  }
+
+  return filtered;
 }
 
 export async function filterFeaturedGames(

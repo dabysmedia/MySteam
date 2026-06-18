@@ -39,14 +39,22 @@ function BrowseContent() {
   }, []);
 
   const search = useCallback(async (term: string) => {
-    if (term.length < 2) return;
+    const trimmed = term.trim();
+    if (trimmed.length < 2) {
+      setSearched(false);
+      setResults([]);
+      setError(null);
+      setQuery("");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSearched(true);
-    setQuery(term);
+    setQuery(trimmed);
 
     try {
-      const res = await fetch(`/api/steam/search?term=${encodeURIComponent(term)}`);
+      const res = await fetch(`/api/steam/search?term=${encodeURIComponent(trimmed)}`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
       setResults(data.items ?? []);
@@ -58,6 +66,15 @@ function BrowseContent() {
     }
   }, []);
 
+  const handleQueryChange = useCallback((term: string) => {
+    if (!term.trim()) {
+      setSearched(false);
+      setResults([]);
+      setError(null);
+      setQuery("");
+    }
+  }, []);
+
   useEffect(() => {
     if (initialQuery) search(initialQuery);
   }, [initialQuery, search]);
@@ -65,32 +82,29 @@ function BrowseContent() {
   const showCatalog = !searched && !loading;
 
   return (
-    <div className="space-y-5 overflow-x-hidden px-4 py-4 sm:px-0 sm:py-0 lg:space-y-8">
-      <div className="lg:flex lg:items-end lg:justify-between lg:gap-8">
-        <div>
-          <h1 className="text-xl font-normal text-steam-text-bright sm:text-2xl lg:text-3xl">
-            Browse Steam
-          </h1>
-          <p className="mt-1 text-sm text-steam-muted lg:mt-2 lg:text-[15px]">
-            Discover popular and upcoming story games — search as you type
-          </p>
-        </div>
-        <p className="hidden text-sm text-steam-muted lg:block lg:max-w-xs lg:text-right">
-          Pick a game to view details and add it to your planner.
+    <div className="space-y-8 overflow-x-hidden px-4 py-4 sm:px-0 sm:py-0 lg:space-y-10">
+      <div className="mx-auto max-w-3xl text-center">
+        <h1 className="text-2xl font-normal text-steam-text-bright sm:text-3xl lg:text-4xl">
+          Browse Steam
+        </h1>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-steam-muted sm:text-base lg:mt-3 lg:text-[15px]">
+          Discover popular and upcoming story games — search as you type
         </p>
-      </div>
 
-      <div className="lg:max-w-2xl">
-        <SearchAutocomplete
-          defaultValue={initialQuery}
-          onSubmit={search}
-          autoFocus={false}
-          placeholder="Search the Steam store..."
-        />
+        <div className="mx-auto mt-6 w-full max-w-2xl lg:mt-8">
+          <SearchAutocomplete
+            defaultValue={initialQuery}
+            onSubmit={search}
+            onQueryChange={handleQueryChange}
+            autoFocus={false}
+            variant="hero"
+            placeholder="Search for a game to add to your planner..."
+          />
+        </div>
       </div>
 
       {loading && (
-        <div className="space-y-2">
+        <div className="mx-auto max-w-3xl space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} variant="row" />
           ))}
@@ -98,21 +112,21 @@ function BrowseContent() {
       )}
 
       {error && (
-        <div className="rounded-sm border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <div className="mx-auto max-w-3xl rounded-[var(--radius-steamos-lg)] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
       {!loading && searched && results.length === 0 && !error && (
-        <div className="py-16 text-center">
+        <div className="mx-auto max-w-3xl py-12 text-center lg:py-16">
           <SearchIcon className="mx-auto h-8 w-8 text-steam-muted" />
           <p className="mt-3 text-sm text-steam-muted">No results for &ldquo;{query}&rdquo;</p>
         </div>
       )}
 
       {!loading && results.length > 0 && (
-        <div className="steam-panel overflow-hidden rounded-sm">
-          <div className="steam-section-header">
+        <div className="steam-panel mx-auto max-w-3xl overflow-hidden rounded-[var(--radius-steamos-lg)]">
+          <div className="steamos-section-header">
             {results.length} result{results.length !== 1 ? "s" : ""} for &ldquo;{query}&rdquo;
           </div>
           <div>
@@ -152,7 +166,7 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <div className="space-y-4 p-4">
-          <div className="h-10 skeleton rounded-sm" />
+          <div className="mx-auto h-14 max-w-2xl skeleton rounded-[var(--radius-steamos-xl)]" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="aspect-[460/215] skeleton rounded-sm" />
