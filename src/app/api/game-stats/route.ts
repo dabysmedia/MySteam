@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SteamAppDetailsResponse } from "@/lib/types";
 import { searchHltb } from "@/lib/hltb";
+import { fetchSteamAppDetails } from "@/lib/steam-app-details";
 
 export async function GET(request: NextRequest) {
   const appId = request.nextUrl.searchParams.get("appId");
@@ -15,25 +15,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [steamRes, hltb] = await Promise.all([
-      fetch(
-        `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=${cc}&l=english`,
-        {
-          headers: { Accept: "application/json", "User-Agent": "MySteam/1.0" },
-          next: { revalidate: 86400 },
-        }
-      ),
+    const [steamDetails, hltb] = await Promise.all([
+      fetchSteamAppDetails(Number(appId), cc),
       searchHltb(name.trim()),
     ]);
 
-    let metacritic: { score: number; url: string } | undefined;
-    if (steamRes.ok) {
-      const data = (await steamRes.json()) as SteamAppDetailsResponse;
-      const entry = data[appId];
-      if (entry?.success && entry.data?.metacritic) {
-        metacritic = entry.data.metacritic;
-      }
-    }
+    const metacritic = steamDetails?.metacritic;
 
     return NextResponse.json({
       metacritic,

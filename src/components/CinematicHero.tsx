@@ -27,6 +27,113 @@ const HERO_SCRIM_FADE_DELAY_MS = 3500;
 const HERO_SCRIM_FADE_DURATION_MS = 2000;
 const HERO_TARGET_VOLUME = 0.15;
 
+const TRAILER_THUMB_W = 96;
+const TRAILER_THUMB_H = 54;
+
+function TrailerPickerRail({
+  trailers,
+  activeIndex,
+  onSelect,
+}: {
+  trailers: SteamMovie[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+      onFocusCapture={() => setExpanded(true)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setExpanded(false);
+        }
+      }}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {expanded ? (
+          <motion.div
+            key="expanded"
+            initial={{ opacity: 0, y: 10, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            className="flex items-end gap-2 rounded-xl bg-black/75 px-2.5 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.55)] ring-1 ring-white/15 backdrop-blur-md"
+          >
+            {trailers.map((trailer, i) => {
+              const active = i === activeIndex;
+              return (
+                <motion.button
+                  key={trailer.id}
+                  type="button"
+                  onClick={() => onSelect(i)}
+                  aria-label={trailer.name}
+                  aria-current={active}
+                  initial={{ opacity: 0, y: 12, scale: 0.88 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 460,
+                    damping: 28,
+                    delay: i * 0.04,
+                  }}
+                  style={{ width: TRAILER_THUMB_W, height: TRAILER_THUMB_H }}
+                  className={`relative shrink-0 overflow-hidden rounded-[10px] ${
+                    active
+                      ? "z-[1] ring-2 ring-steam-accent shadow-[0_0_20px_rgba(26,159,255,0.35)]"
+                      : "opacity-80 hover:opacity-100"
+                  }`}
+                >
+                  <Image
+                    src={trailer.thumbnail}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes={`${TRAILER_THUMB_W}px`}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-1.5 pb-1 pt-5">
+                    <p className="truncate text-[9px] font-medium leading-tight text-white">
+                      {trailer.name}
+                    </p>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="collapsed"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-1.5 py-1"
+          >
+            {trailers.map((trailer, i) => {
+              const active = i === activeIndex;
+              return (
+                <button
+                  key={trailer.id}
+                  type="button"
+                  onClick={() => onSelect(i)}
+                  aria-label={trailer.name}
+                  aria-current={active}
+                  className={`h-1.5 shrink-0 rounded-full transition-all ${
+                    active ? "w-6 bg-steam-accent" : "w-1.5 bg-white/40 hover:bg-white/60"
+                  }`}
+                />
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function CinematicHero({
   movies,
   screenshots,
@@ -221,6 +328,8 @@ export function CinematicHero({
           poster={currentTrailer?.thumbnail ?? fallbackImage}
           mediaRef={heroMediaRef}
           autoPlay
+          cover
+          chromeless
           loop={playable.length <= 1}
           muted={heroMuted}
           volume={heroVolume}
@@ -232,12 +341,12 @@ export function CinematicHero({
           className="absolute inset-0 h-full w-full"
         />
       ) : hasScreenshots ? (
-        <div className="absolute inset-0">
-          <AnimatePresence mode="sync">
+        <div className="absolute inset-0 overflow-hidden">
+          <AnimatePresence mode="wait">
             <motion.div
               key={screenshots![slideIndex].id}
-              initial={{ opacity: 0, scale: 1.08 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
               className="absolute inset-0"
@@ -340,21 +449,13 @@ export function CinematicHero({
         </div>
       )}
 
-      {/* Trailer picker dots */}
+      {/* Trailer picker — dots expand to thumbnails on hover */}
       {mode === "trailer" && playable.length > 1 && (
-        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-          {playable.map((t, i) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTrailerIndex(i)}
-              className={`h-1.5 rounded-full transition-all ${
-                i === trailerIndex ? "w-6 bg-steam-accent" : "w-1.5 bg-white/40"
-              }`}
-              aria-label={t.name}
-            />
-          ))}
-        </div>
+        <TrailerPickerRail
+          trailers={playable}
+          activeIndex={trailerIndex}
+          onSelect={setTrailerIndex}
+        />
       )}
     </div>
   );

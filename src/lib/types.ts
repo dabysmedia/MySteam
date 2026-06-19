@@ -31,6 +31,8 @@ export interface SteamMovie {
   dash_h264?: string;
   dash_av1?: string;
   highlight: boolean;
+  /** YouTube video ID from IGDB game_videos. */
+  youtube_id?: string;
 }
 
 export interface SteamScreenshot {

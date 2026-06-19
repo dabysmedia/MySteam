@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import Hls from "hls.js";
 import type { TrailerSource } from "@/lib/steam-video";
+import { createMaxQualityHls, lockHlsToMaxQuality } from "@/lib/steam-video";
+import {
+  applyYoutubeIframeCover,
+  loadYouTubeIframeApi,
+  setHighestYoutubeQuality,
+  waitForElementSize,
+} from "@/lib/youtube-player";
 import { Volume2, VolumeX, Loader2, Play } from "lucide-react";
 
 interface SteamVideoProps {
@@ -21,6 +28,10 @@ interface SteamVideoProps {
   onVolumeChange?: (volume: number) => void;
   onMutedChange?: (muted: boolean) => void;
   showVolumeSlider?: boolean;
+  /** Scale video to fill the container (object-cover behavior). */
+  cover?: boolean;
+  /** Hide YouTube hover chrome; use with cover for cinematic heroes. */
+  chromeless?: boolean;
 }
 
 export function SteamVideo({
@@ -39,7 +50,10 @@ export function SteamVideo({
   onVolumeChange,
   onMutedChange,
   showVolumeSlider = false,
+  cover = false,
+  chromeless = false,
 }: SteamVideoProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const onPlayingChangeRef = useRef(onPlayingChange);
   onPlayingChangeRef.current = onPlayingChange;
@@ -54,6 +68,10 @@ export function SteamVideo({
     }
   };
   const hlsRef = useRef<Hls | null>(null);
+  const youtubePlayerRef = useRef<YT.Player | null>(null);
+  const youtubeContainerRef = useRef<HTMLDivElement>(null);
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
   const scrubberRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -69,9 +87,11 @@ export function SteamVideo({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !sourceUrl) {
-      setLoading(false);
-      setError(!sourceUrl);
+    if (sourceType === "youtube" || !video || !sourceUrl) {
+      if (sourceType !== "youtube") {
+        setLoading(false);
+        setError(!sourceUrl);
+      }
       return;
     }
 
@@ -99,11 +119,9 @@ export function SteamVideo({
 
     if (sourceType === "hls") {
       if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-        });
+        const hls = createMaxQualityHls();
         hlsRef.current = hls;
+        lockHlsToMaxQuality(hls);
         hls.loadSource(sourceUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -127,6 +145,7 @@ export function SteamVideo({
         setLoading(false);
       }
     } else {
+      video.preload = "auto";
       video.src = sourceUrl;
       video.addEventListener("loadeddata", () => {
         setLoading(false);
@@ -146,6 +165,117 @@ export function SteamVideo({
       }
     };
   }, [sourceUrl, sourceType, autoPlay]);
+
+  useEffect(() => {
+    if (sourceType !== "youtube" || !sourceUrl) {
+      return;
+    }
+
+    const host = youtubeContainerRef.current;
+    const root = rootRef.current;
+    if (!host || !root) return;
+
+    let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
+    setLoading(true);
+    setError(false);
+    setReady(false);
+
+    const layoutIframe = (player: YT.Player) => {
+      if (!cover) return;
+      try {
+        const iframe = player.getIframe();
+        const container = youtubeContainerRef.current ?? rootRef.current;
+        if (iframe && container) {
+          applyYoutubeIframeCover(iframe, container);
+        }
+      } catch {
+        // Player may not be ready yet.
+      }
+    };
+
+    const scheduleCoverLayout = (player: YT.Player) => {
+      layoutIframe(player);
+      requestAnimationFrame(() => layoutIframe(player));
+      window.setTimeout(() => layoutIframe(player), 250);
+    };
+
+    void (async () => {
+      await waitForElementSize(root);
+      if (cancelled || !youtubeContainerRef.current || !rootRef.current) return;
+
+      await loadYouTubeIframeApi();
+      if (cancelled || !youtubeContainerRef.current || !rootRef.current) return;
+
+      youtubePlayerRef.current?.destroy();
+
+      const width = root.clientWidth;
+      const height = root.clientHeight;
+
+      youtubePlayerRef.current = new YT.Player(youtubeContainerRef.current, {
+        width,
+        height,
+        videoId: sourceUrl,
+        playerVars: {
+          autoplay: autoPlay ? 1 : 0,
+          mute: muted ? 1 : 0,
+          loop: loop ? 1 : 0,
+          playlist: loop ? sourceUrl : undefined,
+          controls: chromeless || !controls ? 0 : 1,
+          playsinline: 1,
+          modestbranding: 1,
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin,
+          iv_load_policy: 3,
+          disablekb: chromeless ? 1 : 0,
+          fs: chromeless ? 0 : 1,
+        },
+        events: {
+          onReady: (event) => {
+            if (cancelled) return;
+            scheduleCoverLayout(event.target);
+            setHighestYoutubeQuality(event.target);
+            setLoading(false);
+            setReady(true);
+            if (autoPlay) event.target.playVideo();
+          },
+          onStateChange: (event) => {
+            if (cancelled) return;
+            if (event.data === YT.PlayerState.PLAYING) {
+              scheduleCoverLayout(event.target);
+              setHighestYoutubeQuality(event.target);
+              setIsPlaying(true);
+              onPlayingChangeRef.current?.(true);
+            } else if (event.data === YT.PlayerState.PAUSED) {
+              setIsPlaying(false);
+              onPlayingChangeRef.current?.(false);
+            } else if (event.data === YT.PlayerState.ENDED) {
+              setIsPlaying(false);
+              onPlayingChangeRef.current?.(false);
+              onEndedRef.current?.();
+            }
+          },
+        },
+      });
+
+      if (cover && rootRef.current) {
+        resizeObserver = new ResizeObserver(() => {
+          if (youtubePlayerRef.current) {
+            layoutIframe(youtubePlayerRef.current);
+          }
+        });
+        resizeObserver.observe(rootRef.current);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+      youtubePlayerRef.current?.destroy();
+      youtubePlayerRef.current = null;
+    };
+  }, [sourceUrl, sourceType, autoPlay, loop, controls, muted, chromeless, cover]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -203,6 +333,19 @@ export function SteamVideo({
     video.volume = Math.min(1, Math.max(0, displayVolume));
   }, [displayVolume, displayMuted]);
 
+  useEffect(() => {
+    const player = youtubePlayerRef.current;
+    if (!player || sourceType !== "youtube" || !ready) return;
+
+    if (displayMuted) {
+      player.mute();
+    } else {
+      player.unMute();
+      player.setVolume(Math.round(Math.min(1, Math.max(0, displayVolume)) * 100));
+      setHighestYoutubeQuality(player);
+    }
+  }, [displayMuted, displayVolume, sourceType, ready]);
+
   const setVolume = (next: number) => {
     const clamped = Math.min(1, Math.max(0, next));
     if (onVolumeChange) {
@@ -256,6 +399,17 @@ export function SteamVideo({
   }, [sourceUrl, loading]);
 
   const togglePlay = () => {
+    if (sourceType === "youtube") {
+      const player = youtubePlayerRef.current;
+      if (!player) return;
+      if (isPlaying) {
+        player.pauseVideo();
+      } else {
+        player.playVideo();
+      }
+      return;
+    }
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -271,8 +425,72 @@ export function SteamVideo({
 
   if (!source) return null;
 
+  if (sourceType === "youtube") {
+    return (
+      <div ref={rootRef} className={`relative overflow-hidden bg-black ${className}`}>
+        <div
+          ref={youtubeContainerRef}
+          className={
+            cover
+              ? "absolute inset-0 overflow-hidden"
+              : "h-full w-full [&>iframe]:h-full [&>iframe]:w-full"
+          }
+        />
+        {chromeless && <div className="absolute inset-0 z-[4]" aria-hidden />}
+        {loading && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black">
+            <Loader2 className="h-8 w-8 animate-spin text-steam-accent" />
+          </div>
+        )}
+        {poster && !ready && (
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${poster})` }}
+          />
+        )}
+        {!controls && ready && !error && !chromeless && (
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="pointer-events-auto absolute left-1/2 top-1/2 z-[5] flex h-1/2 w-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center"
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {!isPlaying && (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 text-white opacity-80 backdrop-blur-sm">
+                <Play className="h-7 w-7 fill-white" />
+              </div>
+            )}
+          </button>
+        )}
+        {!controls && ready && !error && (
+          <div className="pointer-events-auto absolute bottom-3 right-3 z-20 flex items-center gap-2">
+            {showVolumeSlider && (
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={displayMuted ? 0 : Math.round(displayVolume * 100)}
+                onChange={(e) => setVolume(Number(e.target.value) / 100)}
+                className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-white/25 accent-steam-accent [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+                aria-label="Volume"
+              />
+            )}
+            <button
+              type="button"
+              onClick={toggleMute}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-colors hover:bg-black/70"
+              aria-label={displayMuted ? "Unmute" : "Mute"}
+            >
+              {displayMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div ref={rootRef} className={`relative overflow-hidden ${className}`}>
       <video
         ref={setVideoRef}
         poster={autoPlay ? undefined : poster}

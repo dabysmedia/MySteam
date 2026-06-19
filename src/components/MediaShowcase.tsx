@@ -7,11 +7,36 @@ import { Play, Maximize2, Minimize2, ChevronLeft, ChevronRight, X, Expand } from
 import type { SteamMovie, SteamScreenshot } from "@/lib/types";
 import { SteamVideo } from "@/components/SteamVideo";
 import { getPlayableTrailers, getTrailerSource } from "@/lib/steam-video";
+import { youtubeThumbnailUrl } from "@/lib/youtube-player";
 
 const TRAILER_THUMB_HEIGHT = 129;
 const TRAILER_THUMB_WIDTH = Math.round((TRAILER_THUMB_HEIGHT * 16) / 9);
 /** Vertical gap between preview and thumb strip (`space-y-3`). */
 const COLUMN_INNER_GAP = 12;
+
+/** Scroll a child into view inside a scrollable container without moving the page. */
+function scrollWithinContainer(container: HTMLElement, child: HTMLElement) {
+  const childTop = child.offsetTop;
+  const childBottom = childTop + child.offsetHeight;
+  const childLeft = child.offsetLeft;
+  const childRight = childLeft + child.offsetWidth;
+  const viewTop = container.scrollTop;
+  const viewBottom = viewTop + container.clientHeight;
+  const viewLeft = container.scrollLeft;
+  const viewRight = viewLeft + container.clientWidth;
+
+  if (childTop < viewTop) {
+    container.scrollTop = childTop;
+  } else if (childBottom > viewBottom) {
+    container.scrollTop = childBottom - container.clientHeight;
+  }
+
+  if (childLeft < viewLeft) {
+    container.scrollLeft = childLeft;
+  } else if (childRight > viewRight) {
+    container.scrollLeft = childRight - container.clientWidth;
+  }
+}
 
 function getFullscreenElement(): Element | null {
   const doc = document as Document & { webkitFullscreenElement?: Element | null };
@@ -64,6 +89,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   const trailerRailRef = useRef<HTMLDivElement>(null);
   const wasTrailerFullscreenRef = useRef(false);
   const screenshotPreviewRef = useRef<HTMLDivElement>(null);
+  const screenshotThumbStripRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [sectionVisible, setSectionVisible] = useState(false);
   const skipScreenshotScrollRef = useRef(true);
@@ -213,10 +239,11 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
     }
     if (!sectionVisible) return;
 
-    thumbRefs.current[activeScreenshot]?.scrollIntoView({
-      block: "nearest",
-      behavior: "smooth",
-    });
+    const thumb = thumbRefs.current[activeScreenshot];
+    const container = screenshotThumbStripRef.current;
+    if (!thumb || !container) return;
+
+    scrollWithinContainer(container, thumb);
   }, [activeScreenshot, sectionVisible]);
 
   useEffect(() => {
@@ -226,11 +253,11 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
     }
     if (!sectionVisible) return;
 
-    trailerThumbRefs.current[activeTrailer]?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-      behavior: "smooth",
-    });
+    const thumb = trailerThumbRefs.current[activeTrailer];
+    const container = trailerRailRef.current;
+    if (!thumb || !container) return;
+
+    scrollWithinContainer(container, thumb);
   }, [activeTrailer, sectionVisible]);
 
   const hasTrailers = playable.length > 0;
@@ -377,12 +404,10 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                       aria-label={movie.name}
                       aria-current={i === activeTrailer}
                     >
-                      <Image
+                      <TrailerThumbnail
                         src={movie.thumbnail}
+                        fallback={movie.youtube_id ? youtubeThumbnailUrl(movie.youtube_id) : movie.thumbnail}
                         alt=""
-                        fill
-                        className="object-cover object-center"
-                        sizes={`${TRAILER_THUMB_WIDTH}px`}
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="h-4 w-4 fill-white text-white" />
@@ -415,8 +440,8 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={screenshots![activeScreenshot].id}
-                    initial={{ opacity: 0, scale: 1.05 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.8 }}
                     className="absolute inset-0"
@@ -446,6 +471,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
               </div>
 
               <div
+                ref={screenshotThumbStripRef}
                 className={`grid gap-1.5 overflow-y-auto scrollbar-thin content-start ${
                   sideBySide ? "grid-cols-3 max-h-32" : "max-h-48 grid-cols-4 sm:grid-cols-5"
                 }`}
@@ -556,5 +582,34 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function TrailerThumbnail({
+  src,
+  fallback,
+  alt,
+}: {
+  src: string;
+  fallback: string;
+  alt: string;
+}) {
+  const [url, setUrl] = useState(src);
+
+  useEffect(() => {
+    setUrl(src);
+  }, [src]);
+
+  return (
+    <Image
+      src={url}
+      alt={alt}
+      fill
+      className="object-cover object-center"
+      sizes={`${TRAILER_THUMB_WIDTH}px`}
+      onError={() => {
+        if (url !== fallback) setUrl(fallback);
+      }}
+    />
   );
 }

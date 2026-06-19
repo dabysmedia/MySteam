@@ -400,3 +400,22 @@ body {
   font-size: 0.75rem;
   line-height: 1.4;
 }
+
+/** 16:9 YouTube iframe scaled to cover a hero container (set --cover-ar on parent). */
+.youtube-cover-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.youtube-cover-stage iframe {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: calc(100% * max(1, var(--cover-ar, 1.7777777778) / 1.7777777778)) !important;
+  height: calc(100% * max(1, 1.7777777778 / var(--cover-ar, 1.7777777778))) !important;
+  border: 0 !important;
+  max-width: none !important;
+  pointer-events: none !important;
+}

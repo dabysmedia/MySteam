@@ -1,5 +1,6 @@
 import type { SteamFeaturedItem } from "@/lib/browse-types";
 import { extractSteamGenres, extractSteamTags } from "@/lib/steam-tags";
+import { STEAM_FETCH_HEADERS } from "@/lib/steam-app-details";
 
 /** Steam store items excluded from game browse/search results. */
 
@@ -266,10 +267,7 @@ export async function fetchSteamAppMeta(
         url.searchParams.set("l", "english");
 
         const res = await fetch(url.toString(), {
-          headers: {
-            Accept: "application/json",
-            "User-Agent": "MySteam/1.0",
-          },
+          headers: STEAM_FETCH_HEADERS,
           next: { revalidate: 3600 },
         });
 

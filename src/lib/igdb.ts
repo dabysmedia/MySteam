@@ -26,6 +26,18 @@ interface IgdbGameRow {
   screenshots?: IgdbImageRef[];
   artworks?: IgdbImageRef[];
   external_games?: IgdbExternalGameRef[];
+  summary?: string;
+  storyline?: string;
+  first_release_date?: number;
+  status?: number;
+  genres?: { name?: string }[];
+  platforms?: { name?: string }[];
+  involved_companies?: {
+    company?: { name?: string };
+    developer?: boolean;
+    publisher?: boolean;
+  }[];
+  videos?: { name?: string; video_id?: string }[];
 }
 
 export interface IgdbMedia {
@@ -35,6 +47,26 @@ export interface IgdbMedia {
   screenshotUrls: string[];
   artworkUrls: string[];
 }
+
+export interface IgdbVideo {
+  name: string;
+  videoId: string;
+}
+
+export interface IgdbGameDetails {
+  media: IgdbMedia;
+  summary?: string;
+  storyline?: string;
+  firstReleaseDate?: number;
+  developers: string[];
+  publishers: string[];
+  genres: string[];
+  platforms: { windows: boolean; mac: boolean; linux: boolean };
+  videos: IgdbVideo[];
+}
+
+const IGDB_DETAIL_FIELDS =
+  "name, summary, storyline, first_release_date, status, cover.image_id, screenshots.image_id, artworks.image_id, genres.name, platforms.name, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, external_games.uid, external_games.category, videos.name, videos.video_id";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -144,17 +176,61 @@ function pickSteamGame(games: IgdbGameRow[], appId: number): IgdbGameRow | null 
   );
 }
 
+function mapDetailedGameRow(game: IgdbGameRow): IgdbGameDetails {
+  const companies = game.involved_companies ?? [];
+  const developers = companies
+    .filter((entry) => entry.developer)
+    .map((entry) => entry.company?.name)
+    .filter((name): name is string => Boolean(name));
+  const publishers = companies
+    .filter((entry) => entry.publisher)
+    .map((entry) => entry.company?.name)
+    .filter((name): name is string => Boolean(name));
+
+  const platformNames = (game.platforms ?? [])
+    .map((platform) => platform.name ?? "")
+    .join(" ");
+
+  return {
+    media: mapGameRow(game),
+    summary: game.summary,
+    storyline: game.storyline,
+    firstReleaseDate: game.first_release_date,
+    developers,
+    publishers,
+    genres: (game.genres ?? [])
+      .map((genre) => genre.name)
+      .filter((name): name is string => Boolean(name)),
+    platforms: {
+      windows: /windows|pc/i.test(platformNames) || platformNames.length === 0,
+      mac: /mac/i.test(platformNames),
+      linux: /linux/i.test(platformNames),
+    },
+    videos: (game.videos ?? [])
+      .filter((video) => video.video_id?.trim())
+      .map((video) => ({
+        name: video.name?.trim() || "Trailer",
+        videoId: video.video_id!.trim(),
+      })),
+  };
+}
+
 export async function getIgdbMediaBySteamAppId(appId: number): Promise<IgdbMedia | null> {
+  const details = await getIgdbGameDetailsBySteamAppId(appId);
+  return details?.media ?? null;
+}
+
+export async function getIgdbGameDetailsBySteamAppId(appId: number): Promise<IgdbGameDetails | null> {
   const games = await igdbQuery<IgdbGameRow>(
     "games",
-    `fields name, cover.image_id, screenshots.image_id, artworks.image_id, external_games.uid, external_games.category;
+    `fields ${IGDB_DETAIL_FIELDS};
 where external_games.uid = "${appId}";
 limit 10;`
   );
 
   const game = games ? pickSteamGame(games, appId) : null;
   if (!game) return null;
-  return mapGameRow(game);
+  return mapDetailedGameRow(game);
 }
 
 export async function searchIgdbMediaByName(name: string, limit = 5): Promise<IgdbMedia[]> {

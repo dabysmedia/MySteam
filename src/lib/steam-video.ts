@@ -1,33 +1,64 @@
+import Hls from "hls.js";
 import type { SteamMovie } from "./types";
 
 export interface TrailerSource {
   url: string;
-  type: "hls" | "mp4" | "webm";
+  type: "hls" | "mp4" | "webm" | "youtube";
   label: string;
 }
 
-/** Pick the best playable trailer URL from Steam's movie object. */
+/** Pick the highest-quality playable trailer URL from a Steam/IGDB movie object. */
 export function getTrailerSource(movie: SteamMovie): TrailerSource | null {
+  if (movie.mp4?.max) {
+    return { url: movie.mp4.max, type: "mp4", label: movie.name };
+  }
+
   if (movie.hls_h264) {
     return { url: movie.hls_h264, type: "hls", label: movie.name };
   }
 
-  const mp4 = movie.mp4?.max || movie.mp4?.["480"];
-  if (mp4) {
-    return { url: mp4, type: "mp4", label: movie.name };
+  if (movie.webm?.max) {
+    return { url: movie.webm.max, type: "webm", label: movie.name };
   }
 
-  const webm = movie.webm?.max || movie.webm?.["480"];
-  if (webm) {
-    return { url: webm, type: "webm", label: movie.name };
+  if (movie.mp4?.["480"]) {
+    return { url: movie.mp4["480"], type: "mp4", label: movie.name };
+  }
+
+  if (movie.webm?.["480"]) {
+    return { url: movie.webm["480"], type: "webm", label: movie.name };
+  }
+
+  if (movie.youtube_id) {
+    return { url: movie.youtube_id, type: "youtube", label: movie.name };
   }
 
   if (movie.dash_h264) {
-    // DASH manifests need a player library; prefer HLS when available
+    // DASH manifests need a player library; prefer HLS/MP4 when available.
     return null;
   }
 
   return null;
+}
+
+export function createMaxQualityHls(): Hls {
+  return new Hls({
+    enableWorker: true,
+    lowLatencyMode: false,
+    capLevelToPlayerSize: false,
+    startLevel: -1,
+  });
+}
+
+/** Lock adaptive HLS streams to their highest available rendition. */
+export function lockHlsToMaxQuality(hls: Hls): void {
+  const pickMaxLevel = () => {
+    if (hls.levels.length > 0) {
+      hls.currentLevel = hls.levels.length - 1;
+    }
+  };
+
+  hls.on(Hls.Events.MANIFEST_PARSED, pickMaxLevel);
 }
 
 export function getHighlightTrailer(movies?: SteamMovie[]): SteamMovie | null {

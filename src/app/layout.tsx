@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <BacklogSyncProvider>
           <ServiceWorkerCleanup />
           <div className="flex min-h-dvh flex-col overflow-x-clip lg:px-[30px]">
-            <header className="sticky top-0 z-40 glass">
+            <header className="sticky top-0 z-40 glass pt-[env(safe-area-inset-top)]">
               <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-5 sm:px-6 lg:mx-0 lg:max-w-none lg:px-2">
                 <div className="flex min-w-0 items-center gap-6">
                   <Logo />
