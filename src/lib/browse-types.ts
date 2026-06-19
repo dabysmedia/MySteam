@@ -13,6 +13,10 @@ export interface SteamFeaturedItem {
   windows_available: boolean;
   mac_available: boolean;
   linux_available: boolean;
+  /** Lower = bigger publisher (0 platform holder, 1 AAA, …). Set by browse API sort. */
+  publisherTier?: number;
+  /** Release timestamp for browse sort; Infinity = undated. */
+  releaseSortKey?: number;
 }
 
 export interface SteamBrowseCategory {

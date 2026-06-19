@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "**.steamstatic.com",
+        hostname: "shared.fastly.steamstatic.com",
+      },
+      {
+        protocol: "https",
+        hostname: "shared.akamai.steamstatic.com",
       },
       {
         protocol: "https",

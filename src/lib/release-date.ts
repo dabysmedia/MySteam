@@ -91,6 +91,54 @@ export function parseReleaseDate(
   return { label: raw, sortKey: 0, isFuture: false, isComingSoon: false };
 }
 
+/** Millisecond timestamp for browse sorting; Infinity = undated / TBD; 0 = unknown. */
+export function releaseSortKey(dateStr: string | undefined, comingSoon = false): number {
+  if (!dateStr) {
+    return comingSoon ? Infinity : 0;
+  }
+
+  const raw = dateStr.trim();
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("coming soon") || lower.includes("to be announced") || lower === "tbd") {
+    return Infinity;
+  }
+
+  const fullDate = raw.match(/(\w+)\s+(\d{1,2}),?\s+(\d{4})/i);
+  if (fullDate) {
+    const month = MONTHS[fullDate[1].toLowerCase()];
+    const day = parseInt(fullDate[2], 10);
+    const year = parseInt(fullDate[3], 10);
+    if (month !== undefined) {
+      return new Date(year, month, day).getTime();
+    }
+  }
+
+  const yearOnly = raw.match(/^(\d{4})$/);
+  if (yearOnly) {
+    return new Date(parseInt(yearOnly[1], 10), 11, 31).getTime();
+  }
+
+  const quarter = raw.match(/Q([1-4])\s+(\d{4})/i);
+  if (quarter) {
+    const q = parseInt(quarter[1], 10);
+    const year = parseInt(quarter[2], 10);
+    const month = (q - 1) * 3 + 2;
+    return new Date(year, month, 15).getTime();
+  }
+
+  const monthYear = raw.match(/^(\w+)\s+(\d{4})$/i);
+  if (monthYear) {
+    const month = MONTHS[monthYear[1].toLowerCase()];
+    const year = parseInt(monthYear[2], 10);
+    if (month !== undefined) {
+      return new Date(year, month, 15).getTime();
+    }
+  }
+
+  return comingSoon ? Infinity : 0;
+}
+
 function buildResult(d: Date, label: string, comingSoon: boolean): ParsedRelease {
   const today = startOfToday();
   const isFuture = d.getTime() >= today.getTime() || comingSoon;

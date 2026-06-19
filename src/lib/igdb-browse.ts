@@ -7,7 +7,13 @@ import {
   isIgdbConfigured,
 } from "@/lib/igdb";
 import {
+  getPublisherDatabase,
+  matchesMajorPublisherCatalog,
+  type PublisherEntry,
+} from "@/lib/publisher-database";
+import {
   fetchSteamAppMeta,
+  isFutureStoreRelease,
   isPlayableSteamStoreGame,
   isSingleplayerStoryGame,
   isSteamHardware,
@@ -28,15 +34,16 @@ const POPULARITY_SOURCES = [
 /** IGDB PopScore sources for upcoming releases. */
 const UPCOMING_SOURCES = [
   10, // Most Wishlisted Upcoming
-  2, // IGDB Want to Play
 ] as const;
 
 const PRIMITIVES_PER_SOURCE = 200;
+const UPCOMING_PRIMITIVES_PER_SOURCE = 400;
 
 interface IgdbBrowseCandidate {
   steamAppId: number;
   name: string;
   headerImage: string;
+  igdbReleaseDate?: number;
 }
 
 function toBrowseItem(candidate: IgdbBrowseCandidate, meta: SteamAppMeta): SteamFeaturedItem {
@@ -52,8 +59,8 @@ function toBrowseItem(candidate: IgdbBrowseCandidate, meta: SteamAppMeta): Steam
     original_price: price?.initial ?? 0,
     final_price: finalPrice,
     currency: price?.currency ?? "USD",
-    header_image: candidate.headerImage,
-    small_capsule_image: candidate.headerImage,
+    header_image: meta.header_image ?? candidate.headerImage,
+    small_capsule_image: meta.header_image ?? candidate.headerImage,
     windows_available: meta.platforms?.windows ?? true,
     mac_available: meta.platforms?.mac ?? false,
     linux_available: meta.platforms?.linux ?? false,
@@ -62,21 +69,29 @@ function toBrowseItem(candidate: IgdbBrowseCandidate, meta: SteamAppMeta): Steam
 
 async function candidatesForPopularityType(
   popularityType: number,
-  seenSteamIds: Set<number>
+  seenSteamIds: Set<number>,
+  upcomingOnly = false
 ): Promise<IgdbBrowseCandidate[]> {
-  const orderedIgdbIds = await fetchIgdbPopularGameIds(popularityType, PRIMITIVES_PER_SOURCE);
+  const primitiveLimit = upcomingOnly ? UPCOMING_PRIMITIVES_PER_SOURCE : PRIMITIVES_PER_SOURCE;
+  const orderedIgdbIds = await fetchIgdbPopularGameIds(popularityType, primitiveLimit);
   if (!orderedIgdbIds.length) return [];
 
-  const games = await fetchIgdbGamesByIds(
-    orderedIgdbIds,
-    "name, cover.image_id, external_games.uid, external_games.category"
-  );
+  const fields = upcomingOnly
+    ? "name, cover.image_id, first_release_date, external_games.uid, external_games.external_game_source"
+    : "name, cover.image_id, external_games.uid, external_games.external_game_source";
+
+  const games = await fetchIgdbGamesByIds(orderedIgdbIds, fields);
   const gamesById = new Map(games.map((game) => [game.id, game]));
   const candidates: IgdbBrowseCandidate[] = [];
+  const nowSec = Math.floor(Date.now() / 1000);
 
   for (const igdbId of orderedIgdbIds) {
     const game = gamesById.get(igdbId);
     if (!game) continue;
+
+    if (upcomingOnly && game.first_release_date && game.first_release_date <= nowSec) {
+      continue;
+    }
 
     const steamAppId = getSteamAppIdFromIgdbGame(game);
     if (!steamAppId || seenSteamIds.has(steamAppId)) continue;
@@ -89,6 +104,7 @@ async function candidatesForPopularityType(
       steamAppId,
       name: game.name,
       headerImage: igdbImageUrl(imageId, "t_1080p"),
+      igdbReleaseDate: game.first_release_date,
     });
   }
 
@@ -99,17 +115,27 @@ async function buildIgdbBrowseList(
   popularityTypes: readonly number[],
   cc: string,
   limit: number,
-  matchesTaste: (meta: SteamAppMeta) => boolean
+  matchesTaste: (
+    meta: SteamAppMeta,
+    publisherEntries: PublisherEntry[],
+    candidate: IgdbBrowseCandidate
+  ) => boolean,
+  upcomingOnly = false
 ): Promise<SteamFeaturedItem[]> {
   if (!isIgdbConfigured()) return [];
 
+  const publisherEntries = await getPublisherDatabase();
   const results: SteamFeaturedItem[] = [];
   const seenSteamIds = new Set<number>();
 
   for (const popularityType of popularityTypes) {
     if (results.length >= limit) break;
 
-    const candidates = await candidatesForPopularityType(popularityType, seenSteamIds);
+    const candidates = await candidatesForPopularityType(
+      popularityType,
+      seenSteamIds,
+      upcomingOnly
+    );
     if (!candidates.length) continue;
 
     const metas = await fetchSteamAppMeta(
@@ -122,7 +148,7 @@ async function buildIgdbBrowseList(
       if (seenSteamIds.has(candidate.steamAppId)) continue;
 
       const meta = metas.get(candidate.steamAppId);
-      if (!meta || !matchesTaste(meta)) continue;
+      if (!meta || !matchesTaste(meta, publisherEntries, candidate)) continue;
 
       seenSteamIds.add(candidate.steamAppId);
       results.push(toBrowseItem(candidate, meta));
@@ -140,7 +166,11 @@ export function buildIgdbPopularNow(
     POPULARITY_SOURCES,
     cc,
     limit,
-    (meta) => isPlayableSteamStoreGame(meta) && isSingleplayerStoryGame(meta)
+    (meta, publisherEntries, _candidate) =>
+      isPlayableSteamStoreGame(meta) &&
+      isSingleplayerStoryGame(meta) &&
+      !isFutureStoreRelease(meta) &&
+      matchesMajorPublisherCatalog(publisherEntries, meta)
   );
 }
 
@@ -148,5 +178,15 @@ export function buildIgdbUpcomingReleases(
   cc = "US",
   limit = BROWSE_POPULAR_LIMIT
 ): Promise<SteamFeaturedItem[]> {
-  return buildIgdbBrowseList(UPCOMING_SOURCES, cc, limit, isUpcomingStoryGame);
+  return buildIgdbBrowseList(
+    UPCOMING_SOURCES,
+    cc,
+    limit,
+    (meta, publisherEntries, candidate) =>
+      isUpcomingStoryGame(meta, {
+        trustUndatedRelease: true,
+        igdbReleaseTimestamp: candidate.igdbReleaseDate,
+      }) && matchesMajorPublisherCatalog(publisherEntries, meta),
+    true
+  );
 }

@@ -1,4 +1,5 @@
 import type { SteamFeaturedItem } from "@/lib/browse-types";
+import { parseReleaseDate, releaseSortKey } from "@/lib/release-date";
 import { extractSteamGenres, extractSteamTags } from "@/lib/steam-tags";
 import { STEAM_FETCH_HEADERS } from "@/lib/steam-app-details";
 
@@ -41,58 +42,12 @@ const NON_STORY_GENRES = new Set([
   "Massively Multiplayer",
 ]);
 
-/** Major publishers/developers — partial, case-insensitive match */
-const AAA_STUDIO_PATTERNS = [
-  "rockstar",
-  "bethesda",
-  "zenimax",
-  "ubisoft",
-  "electronic arts",
-  "ea ",
-  "activision",
-  "blizzard",
-  "square enix",
-  "bandai namco",
-  "capcom",
-  "playstation",
-  "sony interactive",
-  "xbox game studios",
-  "microsoft",
-  "cd projekt",
-  "fromsoftware",
-  "larian studios",
-  "remedy entertainment",
-  "id software",
-  "arkane",
-  "2k",
-  "take-two",
-  "gearbox",
-  "bungie",
-  "bioware",
-  "respawn",
-  "obsidian",
-  "avalanche studios",
-  "kojima productions",
-  "valve",
-  "naughty dog",
-  "guerrilla",
-  "santa monica",
-  "insomniac",
-  "crystal dynamics",
-  "eidos",
-  "monolith",
-  "rocksteady",
-  "housemarque",
-  "nintendo",
-  "sega",
-  "atlus",
-  "platinumgames",
-  "hoyoverse",
-  "mihoyo",
-  "epic games",
-  "warner bros",
-  "wb games",
-] as const;
+import {
+  getPublisherDatabase,
+  matchesMajorPublisherCatalog,
+  scorePublisherDatabaseMatch,
+  type PublisherEntry,
+} from "@/lib/publisher-database";
 
 export interface SteamAppMeta {
   type?: string;
@@ -112,6 +67,18 @@ export interface SteamAppMeta {
     discount_percent: number;
   };
   platforms?: { windows: boolean; mac: boolean; linux: boolean };
+  release_date?: { coming_soon: boolean; date: string };
+}
+
+export function getReleaseSortKeyFromMeta(meta: SteamAppMeta): number {
+  const release = meta.release_date;
+  if (!release?.date?.trim()) {
+    return release?.coming_soon ? Infinity : 0;
+  }
+  if (isUndatedSteamRelease(release.date)) {
+    return Infinity;
+  }
+  return releaseSortKey(release.date, release.coming_soon);
 }
 
 interface RankedStoreItem {
@@ -168,8 +135,75 @@ export function isSingleplayerStoryGame(meta: SteamAppMeta): boolean {
   return scoreSingleplayerStory(meta) >= 35;
 }
 
+function isUndatedSteamRelease(date: string | undefined): boolean {
+  if (!date?.trim()) return true;
+  const lower = date.trim().toLowerCase();
+  return (
+    lower.includes("coming soon") ||
+    lower.includes("to be announced") ||
+    lower === "tbd"
+  );
+}
+
+function startOfTodayLocal(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function isFutureSteamRelease(
+  meta: SteamAppMeta,
+  options?: { trustComingSoonFlag?: boolean }
+): boolean {
+  const release = meta.release_date;
+  if (!release) return options?.trustComingSoonFlag ?? false;
+
+  if (isUndatedSteamRelease(release.date)) {
+    return release.coming_soon && (options?.trustComingSoonFlag ?? false);
+  }
+
+  const parsed = parseReleaseDate(release.date, false);
+  if (!parsed) return false;
+
+  if (parsed.sortKey !== Infinity && parsed.sortKey > 0) {
+    const today = startOfTodayLocal();
+    return parsed.sortKey > today.getTime();
+  }
+
+  return parsed.isFuture;
+}
+
+/** True when a Steam listing is still unreleased — uses Steam dates, with optional IGDB fallback. */
+export function isFutureStoreRelease(
+  meta: SteamAppMeta,
+  options?: { igdbReleaseTimestamp?: number; trustUndatedRelease?: boolean }
+): boolean {
+  const release = meta.release_date;
+  const hasConcreteSteamDate =
+    Boolean(release?.date?.trim()) && !isUndatedSteamRelease(release?.date);
+
+  if (hasConcreteSteamDate && release) {
+    return isFutureSteamRelease(meta, {
+      trustComingSoonFlag: options?.trustUndatedRelease,
+    });
+  }
+
+  if (release?.coming_soon && isUndatedSteamRelease(release.date)) {
+    if (options?.trustUndatedRelease) return true;
+  }
+
+  if (options?.igdbReleaseTimestamp) {
+    return options.igdbReleaseTimestamp * 1000 > startOfTodayLocal().getTime();
+  }
+
+  return false;
+}
+
 /** Story taste for unreleased / preorder titles — allows games without a price yet. */
-export function isUpcomingStoryGame(meta: SteamAppMeta): boolean {
+export function isUpcomingStoryGame(
+  meta: SteamAppMeta,
+  options?: { trustUndatedRelease?: boolean; igdbReleaseTimestamp?: number }
+): boolean {
   if (meta.type && EXCLUDED_APP_TYPES.has(meta.type)) return false;
   if (meta.type && meta.type !== "game") return false;
 
@@ -182,7 +216,13 @@ export function isUpcomingStoryGame(meta: SteamAppMeta): boolean {
     if (NON_STORY_GENRES.has(genre)) return false;
   }
 
-  return scoreSingleplayerStory(meta) >= 35;
+  return (
+    scoreSingleplayerStory(meta) >= 35 &&
+    isFutureStoreRelease(meta, {
+      igdbReleaseTimestamp: options?.igdbReleaseTimestamp,
+      trustUndatedRelease: options?.trustUndatedRelease,
+    })
+  );
 }
 
 export function scoreSingleplayerStory(meta: SteamAppMeta): number {
@@ -207,21 +247,16 @@ export function scoreSingleplayerStory(meta: SteamAppMeta): number {
   return score;
 }
 
-function isAaaStudio(name: string): boolean {
-  const lower = name.toLowerCase();
-  return AAA_STUDIO_PATTERNS.some((pattern) => lower.includes(pattern));
-}
-
 export function scoreAaaAndPopularity(
   meta: SteamAppMeta,
-  item: Pick<RankedStoreItem, "rank" | "featuredSpecial" | "featuredNewRelease" | "featuredTopSeller">
+  item: Pick<RankedStoreItem, "rank" | "featuredSpecial" | "featuredNewRelease" | "featuredTopSeller">,
+  publisherEntries: PublisherEntry[] = []
 ): number {
   let score = 0;
 
-  const studios = [...meta.developers, ...meta.publishers];
-  const aaaMatches = studios.filter(isAaaStudio).length;
-  if (aaaMatches > 0) score += 30;
-  if (aaaMatches >= 2) score += 12;
+  if (publisherEntries.length > 0) {
+    score += scorePublisherDatabaseMatch(publisherEntries, meta);
+  }
 
   const recs = meta.recommendations ?? 0;
   if (recs >= 500_000) score += 42;
@@ -252,69 +287,132 @@ export function scoreAaaAndPopularity(
   return score;
 }
 
+const META_CACHE_MS = 60 * 60 * 1000;
+const META_FETCH_CONCURRENCY = 6;
+
+const metaCache = new Map<string, { meta: SteamAppMeta; at: number }>();
+const metaInflight = new Map<string, Promise<SteamAppMeta | null>>();
+let activeMetaFetches = 0;
+const metaFetchWaiters: Array<() => void> = [];
+
+async function acquireMetaFetchSlot(): Promise<void> {
+  if (activeMetaFetches < META_FETCH_CONCURRENCY) {
+    activeMetaFetches++;
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    metaFetchWaiters.push(resolve);
+  });
+  activeMetaFetches++;
+}
+
+function releaseMetaFetchSlot(): void {
+  activeMetaFetches--;
+  const next = metaFetchWaiters.shift();
+  if (next) next();
+}
+
+async function loadSteamAppMeta(id: number, cc: string): Promise<SteamAppMeta | null> {
+  const key = `${id}:${cc}`;
+  const cached = metaCache.get(key);
+  if (cached && Date.now() - cached.at < META_CACHE_MS) {
+    return cached.meta;
+  }
+
+  const pending = metaInflight.get(key);
+  if (pending) return pending;
+
+  const promise = (async (): Promise<SteamAppMeta | null> => {
+    await acquireMetaFetchSlot();
+    try {
+      const url = new URL("https://store.steampowered.com/api/appdetails");
+      url.searchParams.set("appids", String(id));
+      url.searchParams.set("cc", cc);
+      url.searchParams.set("l", "english");
+
+      const res = await fetch(url.toString(), {
+        headers: STEAM_FETCH_HEADERS,
+        next: { revalidate: 3600 },
+      });
+
+      if (!res.ok) return null;
+
+      const data = (await res.json()) as Record<
+        string,
+        {
+          success?: boolean;
+          data?: {
+            type?: string;
+            name?: string;
+            genres?: { description: string }[];
+            categories?: { description: string }[];
+            developers?: string[];
+            publishers?: string[];
+            recommendations?: { total: number };
+            metacritic?: { score: number };
+            header_image?: string;
+            is_free?: boolean;
+            price_overview?: SteamAppMeta["price_overview"];
+            platforms?: SteamAppMeta["platforms"];
+            release_date?: { coming_soon: boolean; date: string };
+          };
+        }
+      >;
+      const entry = data[String(id)];
+      if (!entry?.success || !entry.data) return null;
+
+      const details = entry.data;
+      const meta: SteamAppMeta = {
+        type: details.type,
+        name: details.name,
+        genres: extractSteamGenres(details.genres),
+        categories: extractSteamTags(details.categories),
+        developers: details.developers ?? [],
+        publishers: details.publishers ?? [],
+        recommendations: details.recommendations?.total,
+        metacritic: details.metacritic?.score,
+        header_image: details.header_image,
+        is_free: details.is_free,
+        price_overview: details.price_overview,
+        platforms: details.platforms,
+        release_date: details.release_date,
+      };
+
+      metaCache.set(key, { meta, at: Date.now() });
+      return meta;
+    } catch {
+      return null;
+    } finally {
+      releaseMetaFetchSlot();
+      metaInflight.delete(key);
+    }
+  })();
+
+  metaInflight.set(key, promise);
+  return promise;
+}
+
 export async function fetchSteamAppMeta(
   appIds: number[],
   cc: string
 ): Promise<Map<number, SteamAppMeta>> {
   const metas = new Map<number, SteamAppMeta>();
+  const uniqueIds = [...new Set(appIds)];
+  if (uniqueIds.length === 0) return metas;
+
+  let index = 0;
+
+  async function worker() {
+    while (index < uniqueIds.length) {
+      const id = uniqueIds[index++];
+      const meta = await loadSteamAppMeta(id, cc);
+      if (meta) metas.set(id, meta);
+    }
+  }
 
   await Promise.all(
-    appIds.map(async (id) => {
-      try {
-        const url = new URL("https://store.steampowered.com/api/appdetails");
-        url.searchParams.set("appids", String(id));
-        url.searchParams.set("cc", cc);
-        url.searchParams.set("l", "english");
-
-        const res = await fetch(url.toString(), {
-          headers: STEAM_FETCH_HEADERS,
-          next: { revalidate: 3600 },
-        });
-
-        if (!res.ok) return;
-
-        const data = (await res.json()) as Record<
-          string,
-          {
-            success?: boolean;
-            data?: {
-              type?: string;
-              name?: string;
-              genres?: { description: string }[];
-              categories?: { description: string }[];
-              developers?: string[];
-              publishers?: string[];
-              recommendations?: { total: number };
-              metacritic?: { score: number };
-              header_image?: string;
-              is_free?: boolean;
-              price_overview?: SteamAppMeta["price_overview"];
-              platforms?: SteamAppMeta["platforms"];
-            };
-          }
-        >;
-        const entry = data[String(id)];
-        if (!entry?.success || !entry.data) return;
-
-        const details = entry.data;
-        metas.set(id, {
-          type: details.type,
-          name: details.name,
-          genres: extractSteamGenres(details.genres),
-          categories: extractSteamTags(details.categories),
-          developers: details.developers ?? [],
-          publishers: details.publishers ?? [],
-          recommendations: details.recommendations?.total,
-          metacritic: details.metacritic?.score,
-          header_image: details.header_image,
-          is_free: details.is_free,
-          price_overview: details.price_overview,
-          platforms: details.platforms,
-        });
-      } catch {
-        // Skip items we can't classify.
-      }
-    })
+    Array.from({ length: Math.min(META_FETCH_CONCURRENCY, uniqueIds.length) }, () => worker())
   );
 
   return metas;
@@ -361,6 +459,52 @@ async function fetchGlobalTopSellers(cc: string, count = 50): Promise<RankedStor
   }
 
   return items;
+}
+
+async function fetchSteamComingSoon(cc: string, count = 100): Promise<RankedStoreItem[]> {
+  const url = new URL("https://store.steampowered.com/search/results/");
+  url.searchParams.set("filter", "comingsoon");
+  url.searchParams.set("category1", "998");
+  url.searchParams.set("json", "1");
+  url.searchParams.set("cc", cc);
+  url.searchParams.set("l", "english");
+  url.searchParams.set("count", String(count));
+
+  const res = await fetch(url.toString(), {
+    headers: STEAM_FETCH_HEADERS,
+    next: { revalidate: 1800 },
+  });
+
+  if (!res.ok) return [];
+
+  const data = (await res.json()) as { items?: { name?: string; logo?: string }[] };
+  const items: RankedStoreItem[] = [];
+
+  for (const [rank, item] of (data.items ?? []).entries()) {
+    const id = item.logo ? parseAppIdFromLogo(item.logo) : null;
+    if (!id || !item.name) continue;
+    items.push({
+      id,
+      name: item.name,
+      rank,
+      featuredSpecial: false,
+      featuredNewRelease: false,
+      featuredTopSeller: false,
+    });
+  }
+
+  return items;
+}
+
+function passesUpcomingBrowseFilter(
+  meta: SteamAppMeta,
+  publisherEntries: PublisherEntry[],
+  options?: { trustUndatedRelease?: boolean; igdbReleaseTimestamp?: number }
+): boolean {
+  return (
+    isUpcomingStoryGame(meta, options) &&
+    matchesMajorPublisherCatalog(publisherEntries, meta)
+  );
 }
 
 interface FeaturedCategoryBuckets {
@@ -525,6 +669,112 @@ export async function filterSteamSearchResults<T extends { id: number; name: str
   return filtered;
 }
 
+export function pickFeaturedStoreGames(
+  items: SteamFeaturedItem[] | undefined,
+  limit = 12
+): SteamFeaturedItem[] {
+  const seen = new Set<number>();
+  const picked: SteamFeaturedItem[] = [];
+
+  for (const item of items ?? []) {
+    if (item.type !== 0 || seen.has(item.id)) continue;
+    if (isSteamHardware({ id: item.id, name: item.name })) continue;
+    seen.add(item.id);
+    picked.push(item);
+    if (picked.length >= limit) break;
+  }
+
+  return picked;
+}
+
+async function filterFeaturedBrowseSection(
+  items: SteamFeaturedItem[],
+  cc: string,
+  limit: number,
+  matchesTaste: (meta: SteamAppMeta, publisherEntries: PublisherEntry[]) => boolean,
+  options?: { includeRelaxed?: boolean }
+): Promise<SteamFeaturedItem[]> {
+  if (!items.length) return [];
+
+  const sample = items.slice(0, Math.min(items.length, limit * 2));
+  const [metas, publisherEntries] = await Promise.all([
+    fetchSteamAppMeta(
+      sample.map((item) => item.id),
+      cc
+    ),
+    getPublisherDatabase(),
+  ]);
+
+  const strict: SteamFeaturedItem[] = [];
+  const relaxed: SteamFeaturedItem[] = [];
+
+  for (const item of sample) {
+    const meta = metas.get(item.id);
+    if (!meta) continue;
+    if (matchesTaste(meta, publisherEntries)) {
+      strict.push(item);
+      continue;
+    }
+    if (options?.includeRelaxed && isSingleplayerStoryGame(meta)) {
+      relaxed.push(item);
+    }
+  }
+
+  const merged = mergeBrowseItems(strict, relaxed, limit);
+  return merged.slice(0, limit);
+}
+
+function mergeBrowseItems(
+  primary: SteamFeaturedItem[],
+  secondary: SteamFeaturedItem[],
+  limit: number
+): SteamFeaturedItem[] {
+  const merged = [...primary];
+  const seen = new Set(merged.map((game) => game.id));
+
+  for (const game of secondary) {
+    if (seen.has(game.id)) continue;
+    merged.push(game);
+    seen.add(game.id);
+    if (merged.length >= limit) break;
+  }
+
+  return merged;
+}
+
+export async function buildFeaturedPopularBrowse(
+  items: SteamFeaturedItem[],
+  cc = "US",
+  limit = 12
+): Promise<SteamFeaturedItem[]> {
+  const candidates = pickFeaturedStoreGames(items, limit * 2);
+  return filterFeaturedBrowseSection(
+    candidates,
+    cc,
+    limit,
+    (meta, publisherEntries) =>
+      isSingleplayerStoryGame(meta) &&
+      !isFutureStoreRelease(meta) &&
+      matchesMajorPublisherCatalog(publisherEntries, meta)
+  );
+}
+
+export async function buildFeaturedUpcomingBrowse(
+  items: SteamFeaturedItem[],
+  cc = "US",
+  limit = 12
+): Promise<SteamFeaturedItem[]> {
+  const candidates = pickFeaturedStoreGames(items, limit * 2);
+  return filterFeaturedBrowseSection(
+    candidates,
+    cc,
+    limit,
+    (meta, publisherEntries) =>
+      isUpcomingStoryGame(meta, { trustUndatedRelease: true }) &&
+      matchesMajorPublisherCatalog(publisherEntries, meta)
+  );
+}
+
 export async function filterFeaturedGames(
   items: SteamFeaturedItem[],
   cc = "US",
@@ -556,26 +806,78 @@ export async function filterUpcomingGames(
 
   if (!unique.length) return [];
 
-  const metas = await fetchSteamAppMeta(
-    unique.map((item) => item.id),
-    cc
-  );
+  const [metas, publisherEntries] = await Promise.all([
+    fetchSteamAppMeta(
+      unique.map((item) => item.id),
+      cc
+    ),
+    getPublisherDatabase(),
+  ]);
 
   return unique
     .filter((item) => {
       const meta = metas.get(item.id);
-      return meta && isUpcomingStoryGame(meta);
+      return (
+        meta &&
+        passesUpcomingBrowseFilter(meta, publisherEntries, {
+          trustUndatedRelease: true,
+        })
+      );
     })
     .slice(0, limit);
+}
+
+export async function buildCuratedUpcomingGames(
+  cc = "US",
+  limit = 12
+): Promise<SteamFeaturedItem[]> {
+  const [candidates, publisherEntries] = await Promise.all([
+    fetchSteamComingSoon(cc, 50),
+    getPublisherDatabase(),
+  ]);
+
+  const withoutHardware = candidates.filter((item) => !isSteamHardware(item));
+  if (!withoutHardware.length) return [];
+
+  const metas = await fetchSteamAppMeta(
+    withoutHardware.map((item) => item.id),
+    cc
+  );
+
+  const ranked = withoutHardware
+    .map((item) => {
+      const meta = metas.get(item.id);
+      if (
+        !meta ||
+        !passesUpcomingBrowseFilter(meta, publisherEntries, {
+          trustUndatedRelease: true,
+        })
+      ) {
+        return null;
+      }
+
+      const score =
+        scoreSingleplayerStory(meta) +
+        scoreAaaAndPopularity(meta, item, publisherEntries);
+      return { item, meta, score };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.score - a.score || a.item.rank - b.item.rank)
+    .slice(0, limit);
+
+  return ranked
+    .map(({ item, meta }) => toFeaturedItem(item.id, item.name, meta))
+    .filter((item): item is SteamFeaturedItem => item !== null);
 }
 
 export async function buildCuratedPopularGames(
   cc = "US",
   limit = 12
 ): Promise<SteamFeaturedItem[]> {
-  const [topSellers, featured] = await Promise.all([
+  const [topSellers, featured, publisherEntries] = await Promise.all([
     fetchGlobalTopSellers(cc, 50),
     fetchFeaturedCategoryData(cc),
+    getPublisherDatabase(),
   ]);
 
   const candidates = mergePopularCandidates(topSellers, featured.buckets, featured.names).filter(
@@ -591,10 +893,18 @@ export async function buildCuratedPopularGames(
   const ranked = candidates
     .map((item) => {
       const meta = metas.get(item.id);
-      if (!meta || !isSingleplayerStoryGame(meta)) return null;
+      if (
+        !meta ||
+        !isSingleplayerStoryGame(meta) ||
+        isFutureStoreRelease(meta) ||
+        !matchesMajorPublisherCatalog(publisherEntries, meta)
+      ) {
+        return null;
+      }
 
       const score =
-        scoreSingleplayerStory(meta) + scoreAaaAndPopularity(meta, item);
+        scoreSingleplayerStory(meta) +
+        scoreAaaAndPopularity(meta, item, publisherEntries);
       return {
         item,
         meta,

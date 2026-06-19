@@ -17,6 +17,7 @@ interface IgdbImageRef {
 interface IgdbExternalGameRef {
   uid?: string;
   category?: number;
+  external_game_source?: number;
 }
 
 interface IgdbGameRow {
@@ -66,7 +67,7 @@ export interface IgdbGameDetails {
 }
 
 const IGDB_DETAIL_FIELDS =
-  "name, summary, storyline, first_release_date, status, cover.image_id, screenshots.image_id, artworks.image_id, genres.name, platforms.name, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, external_games.uid, external_games.category, videos.name, videos.video_id";
+  "name, summary, storyline, first_release_date, status, cover.image_id, screenshots.image_id, artworks.image_id, genres.name, platforms.name, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, external_games.uid, external_games.external_game_source, videos.name, videos.video_id";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -162,11 +163,13 @@ function pickSteamGame(games: IgdbGameRow[], appId: number): IgdbGameRow | null 
   if (!games.length) return null;
 
   const appIdStr = String(appId);
-  const hasSteamLink = (game: IgdbGameRow, category?: number) =>
+  const hasSteamLink = (game: IgdbGameRow, source?: number) =>
     game.external_games?.some(
       (entry) =>
         entry.uid === appIdStr &&
-        (category === undefined ? entry.category == null : entry.category === category)
+        (source === undefined
+          ? externalGameSource(entry) == null
+          : externalGameSource(entry) === source)
     );
 
   return (
@@ -251,17 +254,23 @@ export async function verifyIgdbAuth(): Promise<boolean> {
   return (await getAccessToken()) !== null;
 }
 
+function externalGameSource(entry: IgdbExternalGameRef): number | undefined {
+  return entry.external_game_source ?? entry.category;
+}
+
 export function getSteamAppIdFromIgdbGame(game: {
   external_games?: IgdbExternalGameRef[];
 }): number | null {
   const links = game.external_games ?? [];
-  const steamLink =
-    links.find((entry) => entry.category === STEAM_EXTERNAL_CATEGORY && /^\d+$/.test(entry.uid ?? "")) ??
-    links.find((entry) => entry.category == null && /^\d+$/.test(entry.uid ?? ""));
+  const steamLink = links.find(
+    (entry) =>
+      externalGameSource(entry) === STEAM_EXTERNAL_CATEGORY &&
+      /^\d{1,9}$/.test(entry.uid ?? "")
+  );
 
   if (!steamLink?.uid) return null;
   const appId = Number(steamLink.uid);
-  return Number.isFinite(appId) && appId > 0 ? appId : null;
+  return Number.isFinite(appId) && appId > 0 && appId < 1_000_000_000 ? appId : null;
 }
 
 export async function fetchIgdbGamesByIds(

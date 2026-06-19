@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search as SearchIcon } from "lucide-react";
 import { SearchAutocomplete } from "@/components/SearchAutocomplete";
 import { BrowseCatalog } from "@/components/BrowseCatalog";
 import { GameCard } from "@/components/GameCard";
 import { SkeletonCard } from "@/components/Skeleton";
-import type { SteamSearchItem } from "@/lib/types";
-import type { SteamBrowseResponse } from "@/lib/browse-types";
+import { useBacklog } from "@/hooks/useBacklog";
+import { useDismissedGames } from "@/hooks/useDismissedGames";
+import { getBacklog } from "@/lib/backlog";
+import type { SteamBrowseResponse, SteamFeaturedItem } from "@/lib/browse-types";
+import type { BacklogStatus, SteamSearchItem } from "@/lib/types";
+import { selectBrowseGames } from "@/lib/browse-sort-client";
 import { formatPrice } from "@/lib/utils";
+
+const BROWSE_EXCLUDED_STATUSES: BacklogStatus[] = ["wishlist", "playing", "completed"];
 
 function BrowseContent() {
   const searchParams = useSearchParams();
@@ -22,15 +28,54 @@ function BrowseContent() {
 
   const [catalog, setCatalog] = useState<SteamBrowseResponse | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const { games: backlogGames } = useBacklog();
+  const { dismissedAppIds, dismiss } = useDismissedGames();
+
+  const excludedBacklogAppIds = useMemo(() => {
+    const source = backlogGames.length > 0 ? backlogGames : getBacklog();
+    return new Set(
+      source
+        .filter((game) => BROWSE_EXCLUDED_STATUSES.includes(game.status))
+        .map((game) => game.appId)
+    );
+  }, [backlogGames]);
+
+  const hiddenBrowseAppIds = useMemo(() => {
+    const hidden = new Set<number>();
+    for (const appId of excludedBacklogAppIds) hidden.add(appId);
+    for (const appId of dismissedAppIds) hidden.add(appId);
+    return hidden;
+  }, [dismissedAppIds, excludedBacklogAppIds]);
+
+  const popular = useMemo(
+    () => selectBrowseGames(catalog?.popular ?? [], hiddenBrowseAppIds, "popular"),
+    [catalog?.popular, hiddenBrowseAppIds]
+  );
+
+  const upcomingReleases = useMemo(
+    () => selectBrowseGames(catalog?.upcomingReleases ?? [], hiddenBrowseAppIds, "upcoming"),
+    [catalog?.upcomingReleases, hiddenBrowseAppIds]
+  );
+
+  const handleDismiss = useCallback(
+    (game: SteamFeaturedItem) => {
+      dismiss(game.id, game.name);
+    },
+    [dismiss]
+  );
 
   useEffect(() => {
     async function loadCatalog() {
       try {
         const res = await fetch("/api/steam/browse");
         if (!res.ok) throw new Error("browse failed");
-        setCatalog(await res.json());
+        const data = (await res.json()) as SteamBrowseResponse;
+        setCatalog(data);
+        setCatalogError(null);
       } catch {
         setCatalog({ popular: [], upcomingReleases: [] });
+        setCatalogError("Could not load curated games. Check your connection and refresh.");
       } finally {
         setCatalogLoading(false);
       }
@@ -152,9 +197,11 @@ function BrowseContent() {
 
       {showCatalog && (
         <BrowseCatalog
-          popular={catalog?.popular ?? []}
-          upcomingReleases={catalog?.upcomingReleases ?? []}
+          popular={popular}
+          upcomingReleases={upcomingReleases}
           loading={catalogLoading}
+          error={catalogError}
+          onDismiss={handleDismiss}
         />
       )}
     </div>
@@ -169,7 +216,7 @@ export default function SearchPage() {
           <div className="mx-auto h-14 max-w-2xl skeleton rounded-[var(--radius-steamos-xl)]" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="aspect-[2/3] skeleton rounded-sm" />
+              <div key={i} className="aspect-[16/10] skeleton rounded-sm" />
             ))}
           </div>
         </div>
