@@ -341,7 +341,7 @@ export function CinematicHero({
   return (
     <div
       ref={heroRef}
-      className="relative aspect-[16/9] w-full overflow-hidden bg-black sm:aspect-[21/9] lg:rounded-2xl lg:ring-1 lg:ring-white/10"
+      className="relative aspect-[4/5] w-full overflow-hidden bg-black sm:aspect-[21/9] lg:rounded-2xl lg:ring-1 lg:ring-white/10"
     >
       {/* Media layer */}
       {showTrailer ? (
@@ -409,17 +409,17 @@ export function CinematicHero({
       </motion.div>
 
       {/* Content overlay */}
-      <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 lg:p-8">
+      <div className="absolute inset-x-0 bottom-0 p-3 sm:p-6 lg:p-8">
         {badge}
-        <h1 className="mt-2 text-2xl font-medium tracking-tight text-white drop-shadow-lg sm:text-3xl lg:text-4xl">
+        <h1 className="mt-1.5 text-lg font-medium leading-snug tracking-tight text-white drop-shadow-lg sm:mt-2 sm:text-3xl lg:text-4xl">
           {title}
         </h1>
         {subtitle && (
-          <p className="mt-2 line-clamp-2 max-w-2xl text-sm text-white/70 sm:text-base">
+          <p className="mt-1.5 line-clamp-2 max-w-2xl text-xs leading-relaxed text-white/70 sm:mt-2 sm:text-base">
             {subtitle}
           </p>
         )}
-        {children && <div className="mt-4">{children}</div>}
+        {children && <div className="mt-3 sm:mt-4">{children}</div>}
       </div>
 
       {/* Top action bar (planner CTA, etc.) */}

@@ -69,7 +69,7 @@ export default function GameDetailPage() {
   if (loading) {
     return (
       <div className="space-y-0">
-        <div className="aspect-[16/9] skeleton sm:aspect-[21/9]" />
+        <div className="aspect-[4/5] skeleton sm:aspect-[21/9]" />
         <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6 lg:max-w-none lg:px-0">
           <div className="h-8 w-2/3 skeleton rounded-lg" />
           <div className="h-48 skeleton rounded-2xl" />
