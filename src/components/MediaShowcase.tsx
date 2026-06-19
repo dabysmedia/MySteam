@@ -13,12 +13,32 @@ import {
   registerTrailerAudio,
   releaseTrailerAudio,
 } from "@/lib/trailer-audio-focus";
+import { getGalleryScreenshotUrl } from "@/lib/game-media";
 import { youtubeThumbnailUrl } from "@/lib/youtube-player";
 
 const TRAILER_THUMB_HEIGHT = 129;
+const TRAILER_THUMB_HEIGHT_MOBILE = 96;
 const TRAILER_THUMB_WIDTH = Math.round((TRAILER_THUMB_HEIGHT * 16) / 9);
+const SCREENSHOT_THUMB_SIZE_MOBILE = 64;
 /** Vertical gap between preview and thumb strip (`space-y-3`). */
 const COLUMN_INNER_GAP = 12;
+
+function getTrailerThumbMetrics(stacked: boolean) {
+  const height = stacked ? TRAILER_THUMB_HEIGHT_MOBILE : TRAILER_THUMB_HEIGHT;
+  return {
+    height,
+    width: Math.round((height * 16) / 9),
+  };
+}
+
+function getMediaPreviewClassName(stacked: boolean, extra = ""): string {
+  const base =
+    "relative w-full min-w-0 overflow-hidden rounded-xl ring-1 ring-white/10";
+  const sizing = stacked
+    ? "mx-auto aspect-video w-full max-h-[11.25rem] max-w-full sm:max-h-[13rem]"
+    : "aspect-video w-full";
+  return `${base} ${sizing} ${extra}`.trim();
+}
 
 /** Scroll a child into view inside a scrollable container without moving the page. */
 function scrollWithinContainer(container: HTMLElement, child: HTMLElement) {
@@ -283,6 +303,8 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
 
   const hasTrailers = playable.length > 0;
   const sideBySide = hasTrailers && hasScreenshots;
+  const trailerThumbMetrics = getTrailerThumbMetrics(isStackedLayout);
+  const screenshotThumbsHorizontal = isStackedLayout;
 
   useEffect(() => {
     if (!sideBySide) {
@@ -327,7 +349,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
 
   return (
     <>
-      <section ref={sectionRef} className="steamos-panel overflow-hidden">
+      <section ref={sectionRef} className="steamos-panel min-w-0 overflow-hidden">
         <div className="steamos-section-header flex items-center justify-between">
           <span>Media</span>
           {hasScreenshots && (
@@ -337,12 +359,15 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
           )}
         </div>
 
-        <div className="grid items-start gap-4 p-4 lg:h-[534px] lg:grid-cols-5">
+        <div className="grid w-full min-w-0 items-start gap-3 p-4 sm:gap-4 lg:h-[534px] lg:grid-cols-5">
           {hasTrailers && (
-            <div ref={trailerColRef} className="space-y-3 lg:col-span-3">
+            <div ref={trailerColRef} className="min-w-0 space-y-3 lg:col-span-3">
               <div
                 ref={trailerVideoRef}
-                className="group relative aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none"
+                className={`group ${getMediaPreviewClassName(
+                  isStackedLayout,
+                  "bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:max-h-none [&:fullscreen]:w-screen [&:fullscreen]:rounded-none"
+                )}`}
               >
                 {trailerSource ? (
                   <SteamVideo
@@ -403,7 +428,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                 <div
                   ref={trailerRailRef}
                   className="flex shrink-0 flex-nowrap gap-2 overflow-x-auto overflow-y-hidden scrollbar-thin"
-                  style={{ height: TRAILER_THUMB_HEIGHT }}
+                  style={{ height: trailerThumbMetrics.height }}
                 >
                   {playable.map((movie, i) => (
                     <button
@@ -421,7 +446,10 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                           ? "ring-steam-accent"
                           : "ring-transparent opacity-60 hover:opacity-100"
                       }`}
-                      style={{ height: TRAILER_THUMB_HEIGHT, width: TRAILER_THUMB_WIDTH }}
+                      style={{
+                        height: trailerThumbMetrics.height,
+                        width: trailerThumbMetrics.width,
+                      }}
                       aria-label={movie.name}
                       aria-current={i === activeTrailer}
                     >
@@ -429,6 +457,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                         src={movie.thumbnail}
                         fallback={movie.youtube_id ? youtubeThumbnailUrl(movie.youtube_id) : movie.thumbnail}
                         alt=""
+                        width={trailerThumbMetrics.width}
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="h-4 w-4 fill-white text-white" />
@@ -442,7 +471,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
 
           {hasScreenshots && (
             <div
-              className={`space-y-3 ${hasTrailers ? "lg:col-span-2" : "lg:col-span-5"}`}
+              className={`min-w-0 space-y-3 ${hasTrailers ? "lg:col-span-2" : "lg:col-span-5"}`}
               onMouseEnter={() => setSlideshowPaused(true)}
               onMouseLeave={() => {
                 if (!lightboxOpen) setSlideshowPaused(false);
@@ -450,7 +479,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
             >
               <div
                 ref={screenshotPreviewRef}
-                className="group relative aspect-video overflow-hidden rounded-xl ring-1 ring-white/10"
+                className={getMediaPreviewClassName(isStackedLayout, "group")}
               >
                 <button
                   type="button"
@@ -468,11 +497,11 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                     className="absolute inset-0"
                   >
                     <Image
-                      src={screenshots![activeScreenshot].path_full}
+                      src={getGalleryScreenshotUrl(screenshots![activeScreenshot])}
                       alt={`${gameName} screenshot`}
                       fill
                       className="object-cover"
-                      sizes="400px"
+                      sizes="(max-width: 1024px) 100vw, 640px"
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -493,11 +522,15 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
 
               <div
                 ref={screenshotThumbStripRef}
-                className={`grid gap-1.5 overflow-y-auto scrollbar-thin content-start ${
-                  sideBySide ? "grid-cols-3 max-h-32" : "max-h-48 grid-cols-4 sm:grid-cols-5"
-                }`}
+                className={
+                  screenshotThumbsHorizontal
+                    ? "flex h-16 shrink-0 gap-2 overflow-x-auto overflow-y-hidden scrollbar-thin"
+                    : sideBySide
+                      ? "grid max-h-32 grid-cols-3 gap-1.5 overflow-y-auto scrollbar-thin content-start"
+                      : "grid max-h-48 grid-cols-4 gap-1.5 overflow-y-auto scrollbar-thin content-start sm:grid-cols-5"
+                }
                 style={
-                  sideBySide && thumbStripHeight
+                  !screenshotThumbsHorizontal && sideBySide && thumbStripHeight
                     ? { maxHeight: thumbStripHeight, height: thumbStripHeight }
                     : undefined
                 }
@@ -514,7 +547,11 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                       setSlideshowPaused(true);
                     }}
                     onDoubleClick={() => openLightbox(i)}
-                    className={`relative h-16 shrink-0 overflow-hidden rounded-md transition-all ${
+                    className={`relative shrink-0 overflow-hidden rounded-md transition-all ${
+                      screenshotThumbsHorizontal
+                        ? "h-16 w-[calc((100%-1rem)/4.5)] min-w-[4.5rem] max-w-[5.5rem]"
+                        : "h-16"
+                    } ${
                       i === activeScreenshot
                         ? "ring-2 ring-steam-accent"
                         : "opacity-50 hover:opacity-100"
@@ -522,7 +559,17 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                     aria-label={`Screenshot ${i + 1}`}
                     aria-current={i === activeScreenshot}
                   >
-                    <Image src={shot.path_thumbnail} alt="" fill className="object-cover" sizes="80px" />
+                    <Image
+                      src={getGalleryScreenshotUrl(shot)}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes={
+                        screenshotThumbsHorizontal
+                          ? `${SCREENSHOT_THUMB_SIZE_MOBILE}px`
+                          : "(max-width: 640px) 25vw, 128px"
+                      }
+                    />
                   </button>
                 ))}
               </div>
@@ -587,11 +634,12 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
               onClick={(e) => e.stopPropagation()}
             >
               <Image
-                src={screenshots![lightboxIndex].path_full}
+                src={getGalleryScreenshotUrl(screenshots![lightboxIndex])}
                 alt={`${gameName} screenshot ${lightboxIndex + 1}`}
                 fill
                 className="object-contain"
                 sizes="100vw"
+                quality={95}
                 priority
               />
             </motion.div>
@@ -610,10 +658,12 @@ function TrailerThumbnail({
   src,
   fallback,
   alt,
+  width = TRAILER_THUMB_WIDTH,
 }: {
   src: string;
   fallback: string;
   alt: string;
+  width?: number;
 }) {
   const [url, setUrl] = useState(src);
 
@@ -627,7 +677,7 @@ function TrailerThumbnail({
       alt={alt}
       fill
       className="object-cover object-center"
-      sizes={`${TRAILER_THUMB_WIDTH}px`}
+      sizes={`${width}px`}
       onError={() => {
         if (url !== fallback) setUrl(fallback);
       }}

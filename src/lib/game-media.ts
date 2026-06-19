@@ -80,15 +80,10 @@ export function mergeGameDetailsWithIgdb(
 
   const igdbShots = igdbScreenshots(igdb.media.screenshotUrls, -1);
   const igdbArt = igdbScreenshots(igdb.media.artworkUrls, -1000);
+  const igdbGallery = [...igdbShots, ...igdbArt];
   const steamShots = steam.screenshots ?? [];
-
-  const seen = new Set<string>();
-  const screenshots: SteamScreenshot[] = [];
-  for (const shot of [...igdbShots, ...igdbArt, ...steamShots]) {
-    if (seen.has(shot.path_full)) continue;
-    seen.add(shot.path_full);
-    screenshots.push(shot);
-  }
+  const screenshots =
+    igdbGallery.length > 0 ? igdbGallery : steamShots.length > 0 ? steamShots : undefined;
 
   const background =
     igdb.media.artworkUrls[0] ??
@@ -103,10 +98,15 @@ export function mergeGameDetailsWithIgdb(
     header_image: igdb.media.coverUrl ?? steam.header_image,
     background_raw: background,
     background: background ?? steam.background,
-    screenshots: screenshots.length > 0 ? screenshots : steam.screenshots,
+    screenshots,
     movies: movies ?? steam.movies,
     igdbMedia: igdb.media,
   };
+}
+
+/** Prefer full-resolution gallery URLs; IGDB entries already use HD paths. */
+export function getGalleryScreenshotUrl(shot: SteamScreenshot): string {
+  return shot.path_full || shot.path_thumbnail;
 }
 
 export function extractBacklogImagesFromDetails(

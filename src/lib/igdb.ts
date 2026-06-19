@@ -151,11 +151,11 @@ function mapGameRow(game: IgdbGameRow): IgdbMedia {
     screenshotUrls: (game.screenshots ?? [])
       .map((s) => s.image_id)
       .filter((id): id is string => Boolean(id))
-      .map((id) => igdbImageUrl(id, "t_1080p")),
+      .map((id) => igdbImageUrl(id, "t_original")),
     artworkUrls: (game.artworks ?? [])
       .map((a) => a.image_id)
       .filter((id): id is string => Boolean(id))
-      .map((id) => igdbImageUrl(id, "t_1080p")),
+      .map((id) => igdbImageUrl(id, "t_original")),
   };
 }
 
