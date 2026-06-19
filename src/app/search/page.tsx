@@ -169,7 +169,7 @@ export default function SearchPage() {
           <div className="mx-auto h-14 max-w-2xl skeleton rounded-[var(--radius-steamos-xl)]" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="aspect-[460/215] skeleton rounded-sm" />
+              <div key={i} className="aspect-[2/3] skeleton rounded-sm" />
             ))}
           </div>
         </div>

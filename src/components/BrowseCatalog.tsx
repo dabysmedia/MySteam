@@ -23,12 +23,12 @@ function BrowseGameTile({ game, unreleased }: BrowseGameTileProps) {
       href={`/game/${game.id}`}
       className="group block overflow-hidden rounded-xl bg-steam-surface transition-all hover:ring-1 hover:ring-steam-accent/30"
     >
-      <div className="relative aspect-[460/215] overflow-hidden">
+      <div className="relative aspect-[2/3] overflow-hidden bg-steam-dark">
         <Image
           src={game.header_image}
           alt={game.name}
           fill
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"
           sizes="(max-width: 640px) 45vw, 200px"
         />
         {game.discounted && game.discount_percent > 0 && (
@@ -83,7 +83,7 @@ export function BrowseCatalog({ popular, upcomingReleases, loading }: BrowseCata
             <div className="mb-2 h-6 w-32 skeleton rounded-sm" />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {Array.from({ length: 4 }).map((_, j) => (
-                <div key={j} className="aspect-[460/215] skeleton rounded-sm" />
+                <div key={j} className="aspect-[2/3] skeleton rounded-sm" />
               ))}
             </div>
           </div>
