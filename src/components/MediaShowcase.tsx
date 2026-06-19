@@ -6,7 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, Maximize2, Minimize2, ChevronLeft, ChevronRight, X, Expand } from "lucide-react";
 import type { SteamMovie, SteamScreenshot } from "@/lib/types";
 import { SteamVideo } from "@/components/SteamVideo";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getPlayableTrailers, getTrailerSource } from "@/lib/steam-video";
+import {
+  claimTrailerAudio,
+  registerTrailerAudio,
+  releaseTrailerAudio,
+} from "@/lib/trailer-audio-focus";
 import { youtubeThumbnailUrl } from "@/lib/youtube-player";
 
 const TRAILER_THUMB_HEIGHT = 129;
@@ -95,6 +101,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   const skipScreenshotScrollRef = useRef(true);
   const skipTrailerScrollRef = useRef(true);
   const [thumbStripHeight, setThumbStripHeight] = useState<number | undefined>(undefined);
+  const isStackedLayout = useMediaQuery("(max-width: 1023px)");
 
   const currentTrailer = playable[activeTrailer];
   const trailerSource = useMemo(
@@ -221,6 +228,20 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
   }, [lightboxOpen, closeLightbox, goToPrevScreenshot, goToNextScreenshot]);
 
   useEffect(() => {
+    return registerTrailerAudio("showcase", () => {
+      void exitCinema();
+    });
+  }, [exitCinema]);
+
+  useEffect(() => {
+    if (cinemaOpen) {
+      claimTrailerAudio("showcase");
+    } else {
+      releaseTrailerAudio("showcase");
+    }
+  }, [cinemaOpen]);
+
+  useEffect(() => {
     const node = sectionRef.current;
     if (!node) return;
 
@@ -329,7 +350,7 @@ export function MediaShowcase({ movies, screenshots, gameName }: MediaShowcasePr
                     source={trailerSource}
                     poster={currentTrailer.thumbnail}
                     mediaRef={trailerMediaRef}
-                    autoPlay
+                    autoPlay={!isStackedLayout}
                     loop
                     muted={!cinemaOpen}
                     controls={cinemaOpen}

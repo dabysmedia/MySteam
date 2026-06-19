@@ -10,6 +10,12 @@ import {
   getPlayableTrailers,
   getTrailerSource,
 } from "@/lib/steam-video";
+import {
+  claimTrailerAudio,
+  hasOtherTrailerAudio,
+  registerTrailerAudio,
+  releaseTrailerAudio,
+} from "@/lib/trailer-audio-focus";
 
 interface CinematicHeroProps {
   movies?: SteamMovie[];
@@ -241,7 +247,24 @@ export function CinematicHero({
   useEffect(() => () => clearScrimFadeTimer(), [clearScrimFadeTimer]);
 
   useEffect(() => {
-    if (!scrimHidden || userAudioOverrideRef.current) return;
+    return registerTrailerAudio("hero", () => {
+      userAudioOverrideRef.current = true;
+      stopVolumeRamp();
+      setHeroVolume(0);
+      setHeroMuted(true);
+    });
+  }, [stopVolumeRamp]);
+
+  useEffect(() => {
+    if (heroMuted || heroVolume === 0) {
+      releaseTrailerAudio("hero");
+    } else {
+      claimTrailerAudio("hero");
+    }
+  }, [heroMuted, heroVolume]);
+
+  useEffect(() => {
+    if (!scrimHidden || userAudioOverrideRef.current || hasOtherTrailerAudio("hero")) return;
 
     setHeroMuted(false);
     const start = performance.now();
