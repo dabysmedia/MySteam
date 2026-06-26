@@ -14,6 +14,8 @@ import { MediaShowcase } from "@/components/MediaShowcase";
 import { PlannerActions } from "@/components/PlannerActions";
 import { GamePlannerBar } from "@/components/GamePlannerBar";
 import { GameStatsPanel } from "@/components/GameStatsPanel";
+import { GameProgressPanel } from "@/components/GameProgressPanel";
+import { GameIgnGuidesPanel } from "@/components/GameIgnGuidesPanel";
 import { useBacklog } from "@/hooks/useBacklog";
 import type { BacklogStatus, GameStats } from "@/lib/types";
 import type { EnrichedSteamGameDetails } from "@/lib/game-media";
@@ -29,10 +31,12 @@ export default function GameDetailPage() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { games, add, remove, setStatus, isInBacklog } = useBacklog();
+  const { games, add, remove, setStatus, addNote, removeNote, setRatings, isInBacklog } = useBacklog();
 
   const planEntry = games.find((g) => g.appId === appId);
   const inPlan = isInBacklog(appId);
+  const showProgress =
+    planEntry?.status === "playing" || planEntry?.status === "completed";
 
   useEffect(() => {
     if (!appId || isNaN(appId)) {
@@ -160,6 +164,21 @@ export default function GameDetailPage() {
         </nav>
 
         <GameStatsPanel stats={stats} loading={statsLoading} />
+
+        {showProgress && planEntry && (
+          <>
+            <GameProgressPanel
+              game={planEntry}
+              variant={planEntry.status === "completed" ? "completed" : "playing"}
+              onAddNote={(text) => addNote(appId, text)}
+              onRemoveNote={(noteId) => removeNote(appId, noteId)}
+              onRatingsChange={(ratings) => setRatings(appId, ratings)}
+            />
+            {planEntry.status === "playing" && (
+              <GameIgnGuidesPanel gameName={game.name} />
+            )}
+          </>
+        )}
 
         <div className="flex min-w-0 flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start lg:gap-8 lg:overflow-visible">
           <div className="min-w-0 space-y-5 lg:col-span-8 lg:space-y-6 xl:col-span-8">

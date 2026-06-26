@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BacklogGame, BacklogStatus } from "@/lib/types";
+import type { BacklogGame, BacklogStatus, GameRatings } from "@/lib/types";
 import {
+  addGameNote,
   addToBacklog,
+  deleteGameNote,
   getBacklog,
   getBacklogStats,
   isInBacklog,
   removeFromBacklog,
   reorderWishlistQueue,
-  updateBacklogNotes,
+  updateBacklogRatings,
   updateBacklogStatus,
   updateFeaturedArt,
 } from "@/lib/backlog";
@@ -122,9 +124,25 @@ export function useBacklog() {
     [refresh]
   );
 
-  const setNotes = useCallback(
-    (appId: number, notes: string) => {
-      updateBacklogNotes(appId, notes);
+  const addNote = useCallback(
+    (appId: number, text: string) => {
+      addGameNote(appId, text);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const removeNote = useCallback(
+    (appId: number, noteId: string) => {
+      deleteGameNote(appId, noteId);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const setRatings = useCallback(
+    (appId: number, ratings: Partial<GameRatings>) => {
+      updateBacklogRatings(appId, ratings);
       refresh();
     },
     [refresh]
@@ -157,7 +175,9 @@ export function useBacklog() {
     add,
     remove,
     setStatus,
-    setNotes,
+    addNote,
+    removeNote,
+    setRatings,
     reorderQueue,
     setFeaturedArt,
     isInBacklog: check,

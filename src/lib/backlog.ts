@@ -1,6 +1,6 @@
 "use client";
 
-import type { BacklogGame, BacklogStatus } from "./types";
+import type { BacklogGame, BacklogStatus, GameNoteEntry, GameRatings } from "./types";
 import { readLocalBacklog, writeLocalBacklog, scheduleRemoteSync } from "./backlog-sync";
 
 export function getBacklog(): BacklogGame[] {
@@ -116,14 +116,90 @@ export function updateBacklogMeta(
   return games[index];
 }
 
-export function updateBacklogNotes(appId: number, notes: string): BacklogGame | null {
+export function getNoteLog(game: BacklogGame): GameNoteEntry[] {
+  if (game.noteLog?.length) return game.noteLog;
+  if (game.notes?.trim()) {
+    return [
+      {
+        id: "legacy",
+        text: game.notes.trim(),
+        createdAt: game.updatedAt || game.addedAt,
+      },
+    ];
+  }
+  return [];
+}
+
+function newNoteId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function addGameNote(appId: number, text: string): BacklogGame | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
   const games = getBacklog();
   const index = games.findIndex((g) => g.appId === appId);
   if (index === -1) return null;
 
+  const existing = getNoteLog(games[index]);
+  const entry: GameNoteEntry = {
+    id: newNoteId(),
+    text: trimmed,
+    createdAt: new Date().toISOString(),
+  };
+
   games[index] = {
     ...games[index],
-    notes,
+    noteLog: [entry, ...existing.filter((n) => n.id !== "legacy")],
+    notes: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  saveBacklog(games);
+  return games[index];
+}
+
+export function deleteGameNote(appId: number, noteId: string): BacklogGame | null {
+  const games = getBacklog();
+  const index = games.findIndex((g) => g.appId === appId);
+  if (index === -1) return null;
+
+  const remaining = getNoteLog(games[index]).filter((n) => n.id !== noteId);
+
+  games[index] = {
+    ...games[index],
+    noteLog: remaining.length > 0 ? remaining : undefined,
+    notes: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  saveBacklog(games);
+  return games[index];
+}
+
+/** @deprecated Use addGameNote */
+export function updateBacklogNotes(appId: number, notes: string): BacklogGame | null {
+  return addGameNote(appId, notes);
+}
+
+export function updateBacklogRatings(
+  appId: number,
+  ratings: Partial<GameRatings>
+): BacklogGame | null {
+  const games = getBacklog();
+  const index = games.findIndex((g) => g.appId === appId);
+  if (index === -1) return null;
+
+  const merged: GameRatings = { ...games[index].ratings, ...ratings };
+  for (const key of Object.keys(merged) as (keyof GameRatings)[]) {
+    if (merged[key] === undefined) delete merged[key];
+  }
+
+  games[index] = {
+    ...games[index],
+    ratings: Object.keys(merged).length > 0 ? merged : undefined,
     updatedAt: new Date().toISOString(),
   };
   saveBacklog(games);

@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bash scripts/dev.sh",
-    "dev:clean": "bash scripts/dev.sh --clean",
+    "dev": "node scripts/dev.mjs",
+    "dev:clean": "node scripts/dev.mjs --clean",
+    "devctl": "node scripts/devctl.mjs",
+    "dev:unix": "bash scripts/dev.sh",
     "dev:win": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

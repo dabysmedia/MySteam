@@ -96,6 +96,34 @@ export interface GameStats {
 
 export type BacklogStatus = "wishlist" | "playing" | "completed" | "dropped";
 
+export type GameRatingCategory = "graphics" | "music" | "story" | "gameplay";
+
+export interface GameRatings {
+  graphics?: number;
+  music?: number;
+  story?: number;
+  gameplay?: number;
+  /** @deprecated Migrated away — may exist on old saves */
+  replayValue?: number;
+}
+
+export const RATING_CATEGORIES: {
+  key: GameRatingCategory;
+  label: string;
+  shortLabel: string;
+}[] = [
+  { key: "graphics", label: "Graphics", shortLabel: "GFX" },
+  { key: "music", label: "Music", shortLabel: "Music" },
+  { key: "story", label: "Story", shortLabel: "Story" },
+  { key: "gameplay", label: "Gameplay", shortLabel: "Play" },
+];
+
+export interface GameNoteEntry {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface BacklogGame {
   appId: number;
   name: string;
@@ -107,7 +135,10 @@ export interface BacklogGame {
   comingSoon?: boolean;
   addedAt: string;
   updatedAt: string;
+  /** @deprecated Use noteLog — kept for migration from older saves */
   notes?: string;
+  noteLog?: GameNoteEntry[];
+  ratings?: GameRatings;
   priority?: number;
   /** Lower = earlier in the wishlist queue */
   queueOrder?: number;
